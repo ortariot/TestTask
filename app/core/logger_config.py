@@ -44,7 +44,7 @@ def configure_logging(is_dev: bool = False):
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(stdlib_formatter)
 
-    for logger_name in ("", "uvicorn", "uvicorn.error"):
+    for logger_name in ("", "uvicorn", "uvicorn.error", "sqlalchemy.engine"):
         log = logging.getLogger(logger_name)
         log.handlers = [handler]
         log.setLevel(logging.INFO)

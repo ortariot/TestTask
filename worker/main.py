@@ -66,11 +66,11 @@ trajectory_output = [
 
 print(trajectory_output)
 
-# print(f"Первая точка: Широта {latitudes[0]:.4f}, Долгота {longitudes[0]:.4f}, Высота {heights[0]:.2f} км")
+# print(f"Первая точка: Широта {latitudes[0]:.4f}, Долгота {longitudes[0]:.4f}, Высота {heights[0]:.2f} км")  # noqa: E501, ERA001
 
 
 # Преобразуем время в Юлианскую дату, которую требует SGP4
-# jd, fr = satellite.jdsatepoch, 0.0  # Или используйте текущие jd, fr для нужного момента
+# jd, fr = satellite.jdsatepoch, 0.0  # Или используйте текущие jd, fr для нужного момента  # noqa: E501, ERA001
 
 # Альтернативный точный способ для текущего времени:
 # current_time = start_time
