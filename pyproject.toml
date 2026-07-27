@@ -5,13 +5,17 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.18.5",
     "astropy>=8.0.1",
+    "asyncpg>=0.31.0",
     "fastapi>=0.139.2",
     "numpy>=2.5.1",
     "pydantic-settings>=2.14.2",
     "sgp4>=2.27",
+    "skyfield>=1.54",
     "sqlalchemy>=2.0.51",
     "structlog>=26.1.0",
+    "taskiq>=0.12.4",
     "uvicorn>=0.51.0",
 ]
 
@@ -26,6 +30,13 @@ target-version = "py312"
 line-length = 79
 
 src = ["app", "worker"] 
+
+force-exclude = true
+
+exclude = [
+    "app/migrations",
+    "worker/main.py",
+]
 
 [tool.ruff.lint]
 
@@ -50,8 +61,19 @@ ignore = [
     "S101",    
 ]
 
+
+
 [tool.ruff.lint.isort]
 combine-as-imports = true
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.params.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body"
+]
 
 [tool.mypy]
 strict = true
@@ -69,10 +91,14 @@ plugins = [
     "sqlalchemy.ext.mypy.plugin"
 ]
 
+exclude = [
+    '^app/migrations/',
+]
+
 [tool.pydantic-mypy]
 init_forbid_extra = true
-init_typed = true
 warn_required_dynamic_aliases = true
+warn_untyped_fields = true
 
 [[tool.mypy.overrides]]
 module = "pydantic.*"
