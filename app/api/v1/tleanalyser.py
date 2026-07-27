@@ -1,41 +1,36 @@
-from datetime import timedelta
-
 import structlog
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, status
+from fastapi.responses import JSONResponse
 
 from schemas.coordinates import CalculateResponse
 from schemas.tle import CalculateRequest
+from services.calculation import (
+    OrbitCalculationService,
+    get_orbit_calculations_service,
+)
 
 logger = structlog.get_logger()
 router = APIRouter()
 
 
-@router.post("/calculate/sync", response_model=CalculateResponse)
+@router.post("/calculate/sync")
 async def calculate_sync(
     request: CalculateRequest,
-    settings: SettingsDep,  # noqa: F821
+    service: OrbitCalculationService = Depends(get_orbit_calculations_service),
 ) -> CalculateResponse:
     """расчёт координат (до ``settings.sync_max_points`` точек)."""
-    points_count = estimate_points_count(  # noqa: F821
-        request.start, request.end, timedelta(seconds=request.step_seconds)
-    )
-    if points_count > settings.sync_max_points:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Расчёт требует {points_count} точек, лимит синхронной ручки—"
-                f"{settings.sync_max_points}. Используйте /calculate/async."
-            ),
-        )
 
-    satellite = _build_sat(request)  # noqa: F821
-    batch = await run_in_threadpool(  # noqa: F821
-        calculate_coordinates,  # noqa: F821
-        satellite,
-        request.start,
-        request.end,
-        timedelta(seconds=request.step_seconds),
-    )
+    print(request.model_dump_json())
+    res = await service.calculate_satellite_position(request)
 
-    points = _batch_to_points(batch)  # noqa: F821
-    return CalculateSyncResponse(points=points, total=len(points))  # noqa: F821
+    if res:
+        return JSONResponse(content=res)
+
+    status_code = status.HTTP_202_ACCEPTED
+    return JSONResponse(
+        content={
+            "mes": "the task has been placed in the queue.",
+            "task_id": "1",
+        },
+        status_code=status_code,
+    )

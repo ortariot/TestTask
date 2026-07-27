@@ -12,8 +12,10 @@ dependencies = [
     "numpy>=2.5.1",
     "pydantic-settings>=2.14.2",
     "sgp4>=2.27",
+    "skyfield>=1.54",
     "sqlalchemy>=2.0.51",
     "structlog>=26.1.0",
+    "taskiq>=0.12.4",
     "uvicorn>=0.51.0",
 ]
 
@@ -63,6 +65,15 @@ ignore = [
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.params.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body"
+]
 
 [tool.mypy]
 strict = true

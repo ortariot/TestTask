@@ -1,8 +1,10 @@
 from datetime import datetime
 
+from fastapi import Depends
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from database import get_db_session
 from models.tlemeta import TLEHistory
 from repositories import CRUDRepository
 
@@ -27,4 +29,10 @@ class TLEHistoryRepository(CRUDRepository[TLEHistory]):
             .limit(1)
         )
         result = await self._session.execute(stmt)
-        return result.scalar_of_one_or_none()
+        return result.scalar_one_or_none()
+
+
+def get_tle_repo(
+    session: AsyncSession = Depends(get_db_session),
+) -> TLEHistoryRepository:
+    return TLEHistoryRepository(session)

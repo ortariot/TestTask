@@ -9,7 +9,7 @@ class CoordPoint(BaseModel):
     timestamp: datetime
     latitude: float
     longitude: float
-    altitude_km: float
+    altitude: float
 
 
 class CalculateResponse(BaseModel):

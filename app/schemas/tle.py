@@ -10,18 +10,19 @@ class TLEData(BaseModel):
 
     line1: str = Field(
         ...,
-        min_length=68,
-        max_length=68,
+        min_length=69,
+        max_length=69,
         description="Первая строка TLE",
     )
     line2: str = Field(
         ...,
-        min_length=68,
-        max_length=68,
+        min_length=69,
+        max_length=69,
         description="Вторая строка TLE",
     )
     name: str | None = Field(
         default=None,
+        max_length=24,
         description="Название космического аппарата (опционально)",
     )
 

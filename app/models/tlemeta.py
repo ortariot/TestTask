@@ -63,7 +63,7 @@ class TLEHistory(Base):
         server_default=func.now(), nullable=False
     )
 
-    spacecraft: Mapped["SatelliteMetadata"] = relationship(
+    satellite: Mapped["SatelliteMetadata"] = relationship(
         back_populates="tle_history"
     )
 

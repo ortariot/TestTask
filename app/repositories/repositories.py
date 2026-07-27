@@ -10,7 +10,7 @@ from models.basemodel import Base
 ModelType = TypeVar("ModelType", bound=Base)
 
 
-class AbstractRepository(ABC, Sequence[ModelType]):
+class AbstractRepository[ModelType: Base](ABC):
     @abstractmethod
     async def get_by_id(self, id_: Any) -> ModelType | None:
         raise NotImplementedError
@@ -35,7 +35,7 @@ class AbstractRepository(ABC, Sequence[ModelType]):
         raise NotImplementedError
 
 
-class CRUDRepository(AbstractRepository[ModelType]):
+class CRUDRepository[ModelType: Base](AbstractRepository[ModelType]):
     """
     Универсальный репозиторий, инкапсулирующий базовые CRUD операции.
     """
@@ -68,7 +68,7 @@ class CRUDRepository(AbstractRepository[ModelType]):
             .returning(self._model)
         )
         result = await self._session.execute(stmt)
-        return result.scalar_of_one_or_none()
+        return result.scalar_one_or_none()
 
     async def delete(self, id_: Any) -> bool:
         filter_condition = self._get_pk_filter(id_)
@@ -79,7 +79,7 @@ class CRUDRepository(AbstractRepository[ModelType]):
 
     def _get_pk_filter(self, id_: Any) -> list[Any]:
         """хелпер сборки WHERE по одиночным и составным PK."""
-        mapper = self._model.__mapper__  # type: ignore
+        mapper = self._model.__mapper__
         pk_columns = mapper.primary_key
 
         if len(pk_columns) > 1 and isinstance(id_, tuple):
