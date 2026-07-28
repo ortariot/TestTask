@@ -1,4 +1,5 @@
 from datetime import UTC
+from typing import Any
 
 import numpy as np
 from skyfield.api import EarthSatellite, load
@@ -17,7 +18,9 @@ class AstrodSkyfield(AstroCore):
     _ts = load.timescale()
 
     @classmethod
-    def compute_coordinate(cls, calc_data: CalculateRequest) -> list[dict]:
+    def compute_coordinate(
+        cls, calc_data: CalculateRequest
+    ) -> list[dict[str, Any]]:
         """
         Векторизованный вычислительный движок на NumPy + Skyfield
         """

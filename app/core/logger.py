@@ -1,5 +1,6 @@
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 
 import structlog
 from fastapi import Request, Response
@@ -10,7 +11,11 @@ logger = structlog.get_logger()
 
 
 class StructlogMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
         clear_contextvars()
         start_time = time.perf_counter()
 

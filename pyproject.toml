@@ -8,14 +8,18 @@ dependencies = [
     "alembic>=1.18.5",
     "astropy>=8.0.1",
     "asyncpg>=0.31.0",
+    "clickhouse-connect>=1.6.0",
     "fastapi>=0.139.2",
     "numpy>=2.5.1",
+    "orjson>=3.11.9",
     "pydantic-settings>=2.14.2",
     "sgp4>=2.27",
     "skyfield>=1.54",
     "sqlalchemy>=2.0.51",
     "structlog>=26.1.0",
     "taskiq>=0.12.4",
+    "taskiq-fastapi>=0.5.0",
+    "taskiq-redis>=1.2.3",
     "uvicorn>=0.51.0",
 ]
 

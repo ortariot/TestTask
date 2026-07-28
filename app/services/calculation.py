@@ -1,13 +1,19 @@
 import asyncio
 import math
+from datetime import datetime, timedelta
+from typing import Any
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.settings import settings
 from database import get_db_session
+from models import CalculationTask
 from repositories import (
+    CalculationTaskRepository,
     SatelliteRepository,
     TLEHistoryRepository,
+    get_calc_task_repo,
     get_satellite_repo,
     get_tle_repo,
 )
@@ -15,33 +21,36 @@ from schemas.coordinates import CalculateResponse
 from schemas.tle import CalculateRequest, TLEData
 from solvers.astrospg4 import get_solver
 from solvers.base import AstroCore
+from workers.calctask import run_master_calculation
 
 
 class OrbitCalculationService:
     FIRST_LAUNCH = 57
-    FAST_MODE_MAX_POINTS = 5000
+    FAST_MODE_LIMIT = settings.fast_mode_limit
 
     def __init__(
         self,
         session: AsyncSession,
         satellite_repo: SatelliteRepository,
         tle_history_repo: TLEHistoryRepository,
+        calculation_task_repo: CalculationTaskRepository,
         astro_core: AstroCore,
     ) -> None:
         self.session = session
         self.satellite_repo = satellite_repo
         self.tle_history_repo = tle_history_repo
+        self.calculation_task_repo = calculation_task_repo
         self.astro_core = astro_core
 
     async def calculate_satellite_position(
         self, parameters: CalculateRequest
-    ) -> CalculateResponse | None:
+    ) -> CalculateResponse | dict[str, Any]:
 
-        norad_id, classification, cospar_id, launch_year = self._parse_tls(
-            parameters.tle
+        norad_id, classification, cospar_id, launch_year, era = (
+            self._parse_tls(parameters.tle)
         )
 
-        satellite, created = await self.satellite_repo.get_or_create(
+        _, created = await self.satellite_repo.get_or_create(
             norad_id,
             classification=classification,
             cospar_id=cospar_id,
@@ -51,50 +60,90 @@ class OrbitCalculationService:
         if created:
             await self.session.commit()
 
-        # TODO добавать обновление исторических данных
+        await self.tle_history_repo.add_if_not_exists(
+            norad_id=norad_id,
+            epoch_timestamp=era,
+            raw_line1=parameters.tle.line1,
+            raw_line2=parameters.tle.line2,
+        )
+
+        await self.session.commit()
 
         duration_seconds = (parameters.end - parameters.start).total_seconds()
         total_points = math.ceil(duration_seconds / parameters.step_seconds)
 
-        if total_points <= self.FAST_MODE_MAX_POINTS:
+        if total_points <= self.FAST_MODE_LIMIT:
             coordinates = await asyncio.to_thread(
-                self.astro_core.compute_coordinate, parameters
+                self.astro_core.compute_coordinate, calc_data=parameters
             )
 
             return {"points": coordinates, "total": total_points}
 
         else:
-            return None
+            task = CalculationTask(
+                start_time=parameters.start,
+                end_time=parameters.end,
+                total_points=total_points,
+                used_tle_norad_id=norad_id,
+                used_tle_epoch=era,
+            )
 
-        return satellite
+            await self.calculation_task_repo.add(task)
+            await self.session.commit()
 
-    def _parse_tls(self, tle: TLEData) -> tuple[int, str, str, str]:
+            await run_master_calculation.kiq(
+                task_id=task.id,
+                calc_data=parameters,
+            )
+
+            return {"task_id": task.id, "status": "pending"}
+
+    def _parse_tls(self, tle: TLEData) -> tuple[int, str, str, int, datetime]:
         """
-        return tuple (norad_id, classification, cospar_id, launch_year)
+        return tuple (norad_id, classification, cospar_id, launch_year, era)
         """
 
-        _, norad_id_c, cospar_id, *_ = tle.line1.split()
+        _, norad_id_c, cospar_id_raw, era_raw, *_ = tle.line1.split()
 
-        classification = norad_id_c[-1]
-        norad_id = norad_id_c[:-2]
+        classification: str = norad_id_c[-1]
+        norad_id_str: str = norad_id_c[:-1]
+        cospar_id: str = cospar_id_raw
         launch_year = (
             "19" + cospar_id[0:2]
             if int(cospar_id[0:2]) >= self.FIRST_LAUNCH
             else "20" + cospar_id[0:2]
         )
 
-        return int(norad_id), classification, cospar_id, int(launch_year)
+        era = self._parse_tle_era(era_raw)
+
+        return (
+            int(norad_id_str),
+            classification,
+            cospar_id,
+            int(launch_year),
+            era,
+        )
+
+    def _parse_tle_era(self, era_str: str) -> datetime:
+        year = 2000 + int(era_str[:2])
+        day_of_year = float(era_str[2:])
+        start_date = datetime(year - 1, 12, 31)
+        return start_date + timedelta(days=day_of_year)
 
 
 def get_orbit_calculations_service(
     session: AsyncSession = Depends(get_db_session),
     satellite_repo: SatelliteRepository = Depends(get_satellite_repo),
     tle_history_repo: TLEHistoryRepository = Depends(get_tle_repo),
+    calculation_task_repo: CalculationTaskRepository = Depends(
+        get_calc_task_repo
+    ),
     slover: AstroCore = Depends(get_solver),
 ) -> OrbitCalculationService:
     return OrbitCalculationService(
         session=session,
         satellite_repo=satellite_repo,
         tle_history_repo=tle_history_repo,
+        calculation_task_repo=calculation_task_repo,
         astro_core=slover,
     )

@@ -1,10 +1,14 @@
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from api.v1.misk import router as misk_router
 from api.v1.tleanalyser import router as calc_router
+from core.clickhouse import ch_container, setup_clickhouse
+from core.exceptions import TaskNotFinishedException
 from core.logger import StructlogMiddleware
 from core.logger_config import configure_logging
 from core.settings import settings
@@ -14,10 +18,15 @@ configure_logging(is_dev=settings.is_dev)
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+
     db_manager.init(db_dsl=settings.db_dsl)
+    setup_clickhouse()
+
     yield
+
     await db_manager.close()
+    ch_container.close()
 
 
 app = FastAPI(
@@ -35,6 +44,22 @@ app.add_middleware(StructlogMiddleware)
 
 app.include_router(misk_router, prefix="", tags=["misk"])
 app.include_router(calc_router, prefix="", tags=["calculations"])
+
+
+@app.exception_handler(TaskNotFinishedException)
+async def task_not_finished_handler(
+    _: Request, exc: TaskNotFinishedException
+) -> JSONResponse:
+
+    return JSONResponse(
+        status_code=status.HTTP_202_ACCEPTED,
+        content={
+            "detail": "task not ready",
+            "task_id": exc.task_id,
+            "status": exc.current_status,
+        },
+    )
+
 
 if __name__ == "__main__":
     import uvicorn

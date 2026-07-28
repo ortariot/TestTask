@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 class TLEData(BaseModel):
@@ -42,7 +42,7 @@ class CalculateRequest(BaseModel):
 
     @field_validator("end")
     @classmethod
-    def _end_after_start(cls, v: datetime, info) -> datetime:
+    def _end_after_start(cls, v: datetime, info: ValidationInfo) -> datetime:
         start = info.data.get("start")
         if start is not None and v <= start:
             raise ValueError("end должен быть строго больше start")
