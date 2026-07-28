@@ -1,5 +1,6 @@
 import structlog
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 from core.settings import settings
 
@@ -8,7 +9,7 @@ router = APIRouter()
 
 
 @router.get("/health")
-async def health_check():
+async def health_check() -> JSONResponse:
     """Health check endpoint."""
     logger.info("health_check", status="ok", version=settings.version)
-    return {"status": "ok", "version": settings.version}
+    return JSONResponse(content={"status": "ok", "version": settings.version})

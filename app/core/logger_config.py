@@ -1,12 +1,19 @@
 import logging
 import sys
+from collections.abc import Callable, Mapping, MutableMapping
+from typing import Any
 
 import structlog
 
+Processor = Callable[
+    [Any, str, MutableMapping[str, Any]],
+    "Mapping[str, Any] | str | bytes | bytearray",
+]
 
-def configure_logging(is_dev: bool = False):
 
-    shared_processors = [
+def configure_logging(is_dev: bool = False) -> None:
+
+    shared_processors: list[Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),

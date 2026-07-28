@@ -72,6 +72,25 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("norad_id", "epoch_timestamp"),
         postgresql_partition_by="RANGE (epoch_timestamp)",
     )
+    op.execute(
+        """
+        CREATE TABLE tle_history_y2025 PARTITION OF tle_history
+        FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
+        """
+        )
+    op.execute(
+        """
+        CREATE TABLE tle_history_y2026 PARTITION OF tle_history
+        FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
+        """
+    )
+    op.execute(
+        """
+        CREATE TABLE tle_history_y2027 PARTITION OF tle_history
+        FOR VALUES FROM ('2027-01-01') TO ('2028-01-01');
+        """
+    )
+    
     # ### end Alembic commands ###
 
 

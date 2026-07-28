@@ -1,30 +1,43 @@
+from datetime import datetime
+from typing import Any
+
 import numpy as np
 from astropy import units
 from astropy.coordinates import ITRS, TEME, CartesianRepresentation
 from astropy.time import Time
 from sgp4.api import Satrec, jday
 
-from schemas.tle import CalculateRequest
+from schemas.tle import CalculateRequest, TLEData
 
 from .base import AstroCore
 
 
 class AstroSPG4(AstroCore):
-    """Вычислительное ядро аэрокосмических расчетов на SPG4"""
+    """math core SPG4"""
 
     @staticmethod
-    def compute_coordinate(calc_data: CalculateRequest) -> list[dict]:
-        """
-        calciulate core
-        """
-        # 1. Экстракция входных данных
-        raw_line1 = calc_data.tle.line1
-        raw_line2 = calc_data.tle.line2
-        start_time = calc_data.start
-        end_time = calc_data.end
-        step_seconds = calc_data.step_seconds
+    def compute_coordinate(
+        calc_data: CalculateRequest = None,
+        tle: TLEData = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        step_seconds: int | None = None,
+    ) -> list[dict[str, Any]]:
+
+        if calc_data:
+            raw_line1 = calc_data.tle.line1
+            raw_line2 = calc_data.tle.line2
+            start_time = calc_data.start
+            end_time = calc_data.end
+            step_seconds = calc_data.step_seconds
+        else:
+            raw_line1 = tle.line1
+            raw_line2 = tle.line2
 
         satellite = Satrec.twoline2rv(raw_line1, raw_line2)
+
+        if start_time is None or end_time is None:
+            raise ValueError("start_time and end_time are required")
 
         start_ts = int(start_time.timestamp())
         end_ts = int(end_time.timestamp())

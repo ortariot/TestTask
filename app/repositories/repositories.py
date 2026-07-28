@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from sqlalchemy import delete, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.basemodel import Base
@@ -74,7 +75,7 @@ class CRUDRepository[ModelType: Base](AbstractRepository[ModelType]):
         filter_condition = self._get_pk_filter(id_)
 
         stmt = delete(self._model).where(*filter_condition)
-        result = await self._session.execute(stmt)
+        result = cast(CursorResult[Any], await self._session.execute(stmt))
         return (result.rowcount or 0) > 0
 
     def _get_pk_filter(self, id_: Any) -> list[Any]:

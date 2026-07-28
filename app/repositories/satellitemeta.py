@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import Depends
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -5,7 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db_session
 from models import SatelliteMetadata
-from repositories import CRUDRepository
+
+from .repositories import CRUDRepository
 
 
 class SatelliteRepository(CRUDRepository[SatelliteMetadata]):
@@ -14,7 +17,6 @@ class SatelliteRepository(CRUDRepository[SatelliteMetadata]):
         super().__init__(session, SatelliteMetadata)
 
     async def get_by_cospar(self, cospar_id: str) -> SatelliteMetadata | None:
-        """метод поиска только для космических аппаратов."""
         stmt = select(SatelliteMetadata).where(
             SatelliteMetadata.cospar_id == cospar_id
         )
@@ -22,7 +24,7 @@ class SatelliteRepository(CRUDRepository[SatelliteMetadata]):
         return result.scalar_one_or_none()
 
     async def get_or_create(
-        self, norad_id: int, **create_kwargs
+        self, norad_id: int, **create_kwargs: Any
     ) -> tuple[SatelliteMetadata, bool]:
 
         insert_stmt = (
