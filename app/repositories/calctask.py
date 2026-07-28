@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db_session
 from models import TaskStatus
-from models.tlemeta import CalculationTask
+from models.context import CalculationTask
 
 from .repositories import CRUDRepository
 

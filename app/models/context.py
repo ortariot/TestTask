@@ -1,10 +1,11 @@
 import enum
 from datetime import datetime
-from typing import Any
 
 from sqlalchemy import (
     BIGINT,
     CHAR,
+    FLOAT,
+    INTEGER,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -37,7 +38,7 @@ class SatelliteMetadata(TimestampMixin, Base):
     norad_id: Mapped[int] = mapped_column(
         primary_key=True, autoincrement=False
     )
-    cospar_id: Mapped[str] = mapped_column(CHAR(8), nullable=False)
+    cospar_id: Mapped[str] = mapped_column(String(15), nullable=False)
     classification: Mapped[str] = mapped_column(
         CHAR(1), server_default="U", nullable=False
     )
@@ -45,6 +46,10 @@ class SatelliteMetadata(TimestampMixin, Base):
     launch_year: Mapped[int] = mapped_column(SmallInteger, nullable=False)
 
     tle_history: Mapped[list["TLEHistory"]] = relationship(
+        back_populates="satellite", cascade="all, delete-orphan"
+    )
+
+    orbit_history: Mapped[list["OrbitHistory"]] = relationship(
         back_populates="satellite", cascade="all, delete-orphan"
     )
 
@@ -70,9 +75,49 @@ class TLEHistory(Base):
         back_populates="tle_history"
     )
 
-    __table_args__: dict[str, Any] = {  # noqa: RUF012
-        "postgresql_partition_by": "RANGE (epoch_timestamp)"
-    }
+
+class OrbitHistory(Base):
+    __tablename__ = "orbit_history"
+
+    norad_cat_id: Mapped[int] = mapped_column(
+        ForeignKey("satellite_metadata.norad_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    epoch: Mapped[datetime] = mapped_column(primary_key=True)
+
+    object_name: Mapped[str] = mapped_column(nullable=False)
+    object_id: Mapped[str] = mapped_column(nullable=False)
+
+    mean_motion: Mapped[float] = mapped_column(FLOAT, nullable=False)
+    eccentricity: Mapped[float] = mapped_column(FLOAT, nullable=False)
+    inclination: Mapped[float] = mapped_column(FLOAT, nullable=False)
+    ra_of_asc_node: Mapped[float] = mapped_column(FLOAT, nullable=False)
+    arg_of_pericenter: Mapped[float] = mapped_column(FLOAT, nullable=False)
+    mean_anomaly: Mapped[float] = mapped_column(FLOAT, nullable=False)
+
+    ephemeris_type: Mapped[int] = mapped_column(
+        INTEGER, server_default="0", nullable=False
+    )
+    classification_type: Mapped[str] = mapped_column(
+        CHAR(1), server_default="U", nullable=False
+    )
+    element_set_no: Mapped[int] = mapped_column(
+        INTEGER, server_default="999", nullable=False
+    )
+    rev_at_epoch: Mapped[int] = mapped_column(INTEGER, nullable=False)
+    bstar: Mapped[float] = mapped_column(
+        FLOAT, server_default="0.0", nullable=False
+    )
+    mean_motion_dot: Mapped[float] = mapped_column(
+        FLOAT, server_default="0.0", nullable=False
+    )
+    mean_motion_ddot: Mapped[float] = mapped_column(
+        FLOAT, server_default="0.0", nullable=False
+    )
+
+    satellite: Mapped["SatelliteMetadata"] = relationship(
+        back_populates="orbit_history"
+    )
 
 
 class TaskStatus(enum.StrEnum):
@@ -111,8 +156,11 @@ class CalculationTask(TimestampMixin, Base):
         String(20), default=TaskType.SLOW, nullable=False
     )
 
-    used_tle_norad_id: Mapped[int] = mapped_column(nullable=False)
-    used_tle_epoch: Mapped[datetime] = mapped_column(nullable=False)
+    used_tle_norad_id: Mapped[int | None] = mapped_column(nullable=True)
+    used_tle_epoch: Mapped[datetime | None] = mapped_column(nullable=True)
+
+    used_orbit_norad_id: Mapped[int | None] = mapped_column(nullable=True)
+    used_orbit_epoch: Mapped[datetime | None] = mapped_column(nullable=True)
 
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -136,8 +184,24 @@ class CalculationTask(TimestampMixin, Base):
         ForeignKeyConstraint(
             ["used_tle_norad_id", "used_tle_epoch"],
             ["tle_history.norad_id", "tle_history.epoch_timestamp"],
+            ondelete="SET NULL",
+        ),
+        ForeignKeyConstraint(
+            ["used_orbit_norad_id", "used_orbit_epoch"],
+            ["orbit_history.norad_cat_id", "orbit_history.epoch"],
+            ondelete="SET NULL",
         ),
         enum_check_constraint(TaskStatus, "status"),
         enum_check_constraint(TaskType, "task_type"),
         CheckConstraint("start_time <= end_time", name="ck_valid_time_range"),
+        CheckConstraint(
+            """
+            (used_tle_norad_id IS NOT NULL AND used_tle_epoch IS NOT NULL
+            AND used_orbit_norad_id IS NULL AND used_orbit_epoch IS NULL)
+            OR
+            (used_orbit_norad_id IS NOT NULL AND used_orbit_epoch IS NOT NULL
+            AND used_tle_norad_id IS NULL AND used_tle_epoch IS NULL)
+            """,
+            name="ck_single_source_data",
+        ),
     )

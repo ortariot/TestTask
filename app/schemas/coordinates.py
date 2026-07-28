@@ -13,15 +13,11 @@ class CoordPoint(BaseModel):
 
 
 class CalculateResponse(BaseModel):
-    """Ответ - список координат"""
-
     points: list[CoordPoint]
     total: int
 
 
 class CalculateResponsePagination(BaseModel):
-    """Ответ - список координат"""
-
     points: list[CoordPoint]
     page: int
     size: int

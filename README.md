@@ -210,15 +210,48 @@ docker compose up -d --build
 curl -X POST http://localhost:8000/coordinates_calculate \
   -H "Content-Type: application/json" \
   -d '{
-    "tle": {
-      "name": "ISS (ZARYA)",
-      "line1": "1 25544U 98067A   25209.50255776  .00013227  00000+0  23758-3 0  9993",
-      "line2": "2 25544  51.6418 226.9119 0003134 261.6270 264.0460 15.49990995502311"
-    },
-    "start": "2025-07-28T12:00:00Z",
-    "end":   "2025-07-28T13:00:00Z",
-    "step_seconds": 10
-  }'
+        "content": {
+            "content": "tle",
+            "line1": "1 25544U 98067A   24089.70425714  .00014761  00000-0  26402-3 0  9997",
+            "line2": "2 25544  51.6416 195.8450 0004245 214.3989 240.2317 15.49509425445831",
+            "name": "ISS (ZARYA)"
+        },
+        "start": "2026-07-28T04:00:00Z",
+        "end": "2026-07-28T05:00:00Z",
+        "step_seconds": 10
+    }
+   '
+
+
+curl -X POST http://localhost:8000/coordinates_calculate \
+  -H "Content-Type: application/json" \
+  -d '{
+        "content": {
+            "content": "orbit",
+            "OBJECT_NAME": "PROGRESS-MS33",
+            "OBJECT_ID": "2026-058A",
+            "EPOCH": "2026-07-28T03:39:38.218752Z",
+            "MEAN_MOTION": 15.49220842,
+            "ECCENTRICITY": 0.0007093,
+            "INCLINATION": 51.632,
+            "RA_OF_ASC_NODE": 97.3682,
+            "ARG_OF_PERICENTER": 345.612,
+            "MEAN_ANOMALY": 14.4666,
+            "EPHEMERIS_TYPE": 0,
+            "CLASSIFICATION_TYPE": "U",
+            "NORAD_CAT_ID": 68319,
+            "ELEMENT_SET_NO": 999,
+            "REV_AT_EPOCH": 57794,
+            "BSTAR": 0.00020282,
+            "MEAN_MOTION_DOT": 0.00010831,
+            "MEAN_MOTION_DDOT": 0
+        },
+        "start": "2026-07-28T04:00:00Z",
+        "end": "2026-07-28T05:00:00Z",
+        "step_seconds": 10
+    }
+   '
+
 ```
 
 **Быстрый ответ (≤ 5000 точек):**

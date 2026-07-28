@@ -33,8 +33,6 @@ dev = [
 target-version = "py312"
 line-length = 79
 
-src = ["app"] 
-
 force-exclude = true
 
 exclude = [
@@ -69,6 +67,18 @@ ignore = [
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
+known-first-party = [
+    "api",
+    "core",
+    "database",
+    "helpers",
+    "models",
+    "repositories",
+    "schemas",
+    "services",
+    "solvers",
+    "workers",
+]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = [

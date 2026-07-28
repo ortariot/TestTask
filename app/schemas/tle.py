@@ -1,49 +1,47 @@
-from __future__ import annotations
+from typing import Literal
 
-from datetime import datetime
-
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, Field, model_validator
+from sgp4.api import Satrec
 
 
 class TLEData(BaseModel):
-    """Две строки TLE в формате NORAD + необязательное название."""
+    content: Literal["tle"] = "tle"
 
     line1: str = Field(
         ...,
         min_length=69,
         max_length=69,
-        description="Первая строка TLE",
+        description="first TLE",
+        examples=[
+            "1 25544U 98067A   24089.70425714  .00014761  00000-0  26402-3 0  9997"  # noqa: E501
+        ],
     )
     line2: str = Field(
         ...,
         min_length=69,
         max_length=69,
-        description="Вторая строка TLE",
+        description="second TLE",
+        examples=[
+            "2 25544  51.6416 195.8450 0004245 214.3989 240.2317 15.49509425445831"  # noqa: E501
+        ],
     )
     name: str | None = Field(
         default=None,
         max_length=24,
-        description="Название космического аппарата (опционально)",
+        description="sattelite name",
     )
 
+    @model_validator(mode="after")
+    def validate_tle_via_sgp4(self) -> "TLEData":
 
-class CalculateRequest(BaseModel):
-    """Базовые параметры расчёта: TLE, интервал, шаг сетки."""
+        l1 = self.line1.strip()
+        l2 = self.line2.strip()
 
-    tle: TLEData = Field(..., description="TLE спутника")
-    start: datetime = Field(..., description="Начало интервала (UTC)")
-    end: datetime = Field(..., description="Конец интервала (UTC, не вкл.)")
-    step_seconds: int = Field(
-        ...,
-        ge=1,
-        le=60,
-        description="Шаг сетки в секундах",
-    )
+        try:
+            Satrec.twoline2rv(l1, l2)
+        except ValueError as err:
+            raise ValueError(f"Invalid TLE data: {err}") from err
 
-    @field_validator("end")
-    @classmethod
-    def _end_after_start(cls, v: datetime, info: ValidationInfo) -> datetime:
-        start = info.data.get("start")
-        if start is not None and v <= start:
-            raise ValueError("end должен быть строго больше start")
-        return v
+        self.line1 = l1
+        self.line2 = l2
+        return self
