@@ -144,8 +144,10 @@
 
 ```bash
 # 1. Клонировать репозиторий
-git clone <repo-url>
-cd <repo-dir>
+git clone https://github.com/ortariot/TestTask.git
+cd TestTask
+
+mv .emv_example .env
 
 # 2. Запустить все сервисы
 docker compose up -d --build
