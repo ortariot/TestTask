@@ -62,7 +62,7 @@ class ClickHouseContainer:
             self._executor, func, *args, **kwargs
         )
 
-    async def insert_bulk(self, data: list[list[str | int | float]]) -> None:
+    async def insert_bulk(self, data: Any) -> None:
         if self.client is None:
             raise RuntimeError("ClickHouse client is not initialized")
 

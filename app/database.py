@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from sqlalchemy import URL
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -14,7 +15,7 @@ class DatabaseSessionManager:
         self._engine: AsyncEngine | None = None
         self._session_factory: async_sessionmaker[AsyncSession] | None = None
 
-    def init(self, db_dsl: str, pool_pre_ping: bool = True) -> None:
+    def init(self, db_dsl: str | URL, pool_pre_ping: bool = True) -> None:
 
         if self._engine is not None:
             raise RuntimeError(

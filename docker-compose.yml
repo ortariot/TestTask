@@ -101,6 +101,58 @@ services:
         max-size: "100m"
         max-file: "3"
         compress: "true"
+  sat-api:
+    build:
+      context: ./app
+      target: runtime
+    container_name: sat-api
+    restart: always
+    command: sh -c "python -m alembic upgrade head && python -m uvicorn main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      sat-postgres:
+        condition: service_healthy
+      sat-redis:
+        condition: service_healthy
+      sat-clickhouse:
+        condition: service_healthy
+    healthcheck:
+
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+ 
+  sat-worker:
+    build:
+      context: ./app
+      target: runtime
+    container_name: sat-worker
+    restart: always
+    command: taskiq worker core.taskbroker:broker workers.calctask --workers 4
+    env_file:
+      - .env
+    depends_on:
+      sat-api:
+        condition: service_healthy 
+
+
+  sat-scheduler:
+    build:
+      context: ./app
+      target: runtime
+    container_name:  sat-scheduler
+    restart: always
+    command: taskiq scheduler core.taskbroker:scheduler
+    env_file:
+      - .env
+    depends_on:
+      sat-api:
+        condition: service_healthy
 
 volumes:
   pg_data:

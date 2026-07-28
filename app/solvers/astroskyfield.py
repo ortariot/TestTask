@@ -1,11 +1,10 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 import numpy as np
+from schemas.tle import CalculateRequest, TLEData
 from skyfield.api import EarthSatellite, load
 from skyfield.toposlib import wgs84
-
-from schemas.tle import CalculateRequest, TLEData
 
 from .base import AstroCore
 
@@ -20,8 +19,8 @@ class AstrodSkyfield(AstroCore):
     @classmethod
     def compute_coordinate(
         cls,
-        calc_data: CalculateRequest = None,
-        tle: TLEData = None,
+        calc_data: CalculateRequest | None = None,
+        tle: TLEData | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
         step_seconds: int | None = None,
@@ -36,16 +35,21 @@ class AstrodSkyfield(AstroCore):
             start_time = calc_data.start
             end_time = calc_data.end
             step_seconds = calc_data.step_seconds
-        else:
+        elif tle:
             raw_line1 = tle.line1
             raw_line2 = tle.line2
+        else:
+            raise ValueError("start_time and end_time are required")
 
         satellite = EarthSatellite(
             raw_line1, raw_line2, name="SAT", ts=cls._ts
         )
 
-        start_ts = int(start_time.astimezone(UTC).timestamp())
-        end_ts = int(end_time.astimezone(UTC).timestamp())
+        if start_time is None or end_time is None:
+            raise ValueError("start_time and end_time are required")
+
+        start_ts = int(start_time.timestamp())
+        end_ts = int(end_time.timestamp())
 
         timestamps = np.arange(
             start_ts, end_ts + 1, step_seconds, dtype=np.int64

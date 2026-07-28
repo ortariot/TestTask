@@ -3,7 +3,6 @@ import math
 from datetime import UTC, datetime, timedelta
 
 import structlog
-
 from core.clickhouse import ch_container
 from core.settings import settings
 from core.taskbroker import broker
@@ -21,13 +20,13 @@ def current_task_name() -> str:
     return task.get_name() if task else "unknown"
 
 
-@broker.task(task_name="process_chank")  # type: ignore[untyped-decorator]
+@broker.task(task_name="process_chank")
 async def process_chank(  # noqa: PLR0913, PLR0917
     task_id: int,
     chunk_index: int,
     start: datetime,
     end: datetime,
-    step_seconds: float,
+    step_seconds: int,
     tle_data: TLEData,
 ) -> None:
 
@@ -85,7 +84,7 @@ async def process_chank(  # noqa: PLR0913, PLR0917
     )
 
 
-@broker.task(task_name="run_master_calculation")  # type: ignore[untyped-decorator]
+@broker.task(task_name="run_master_calculation")
 async def run_master_calculation(
     task_id: int, calc_data: CalculateRequest
 ) -> None:
