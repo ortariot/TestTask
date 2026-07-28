@@ -1,12 +1,11 @@
 from datetime import datetime
 
+from database import get_db_session
 from fastapi import Depends
+from models.context import TLEHistory
 from sqlalchemy import desc, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from database import get_db_session
-from models.tlemeta import TLEHistory
 
 from .repositories import CRUDRepository
 
@@ -18,9 +17,7 @@ class TLEHistoryRepository(CRUDRepository[TLEHistory]):
     async def get_closest_tle(
         self, norad_id: int, target_date: datetime
     ) -> TLEHistory | None:
-        """
-        запрос находит один TLE, актуальный на заданную историческую дату.
-        """
+
         stmt = (
             select(TLEHistory)
             .where(

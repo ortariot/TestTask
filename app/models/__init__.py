@@ -1,6 +1,7 @@
 from .basemodel import Base
-from .tlemeta import (
+from .context import (
     CalculationTask,
+    OrbitHistory,
     SatelliteMetadata,
     TaskStatus,
     TaskType,
@@ -10,6 +11,7 @@ from .tlemeta import (
 __all__ = [
     "Base",
     "CalculationTask",
+    "OrbitHistory",
     "SatelliteMetadata",
     "TLEHistory",
     "TaskStatus",

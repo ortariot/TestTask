@@ -9,7 +9,9 @@ from core.taskbroker import broker
 from database import db_manager
 from models import TaskStatus
 from repositories import CalculationTaskRepository
-from schemas.tle import CalculateRequest, TLEData
+from schemas.calcreq import CalculationRequest
+from schemas.orbits import OrbitData
+from schemas.tle import TLEData
 from solvers.astrospg4 import AstroSPG4
 
 logger = structlog.get_logger()
@@ -27,7 +29,7 @@ async def process_chank(  # noqa: PLR0913, PLR0917
     start: datetime,
     end: datetime,
     step_seconds: int,
-    tle_data: TLEData,
+    content: TLEData | OrbitData,
 ) -> None:
 
     task_name = current_task_name()
@@ -38,14 +40,12 @@ async def process_chank(  # noqa: PLR0913, PLR0917
         chunk_index,
     )
 
-    solver = AstroSPG4()
-    coords = await asyncio.to_thread(
-        solver.compute_coordinate,
-        tle=tle_data,
-        start_time=start,
-        end_time=end,
-        step_seconds=step_seconds,
+    chunk = CalculationRequest(
+        content=content, start=start, end=end, step_seconds=step_seconds
     )
+
+    solver = AstroSPG4()
+    coords = await asyncio.to_thread(solver.compute_coordinate, chunk)
 
     bulk_data = [
         [
@@ -86,8 +86,12 @@ async def process_chank(  # noqa: PLR0913, PLR0917
 
 @broker.task(task_name="run_master_calculation")
 async def run_master_calculation(
-    task_id: int, calc_data: CalculateRequest
+    task_id: int, calc_data: CalculationRequest
 ) -> None:
+
+    if isinstance(calc_data, dict):
+        calc_data = CalculationRequest.model_validate(calc_data)
+
     task_name = current_task_name()
     CHUNK_SIZE = settings.fast_mode_limit
 
@@ -118,12 +122,11 @@ async def run_master_calculation(
         )
         chunk_start = calc_data.start + timedelta(seconds=chunk_start_sec)
         chunk_end = calc_data.start + timedelta(seconds=chunk_end_sec)
-
         await process_chank.kiq(
             task_id=task_id,
             chunk_index=idx,
             start=chunk_start,
             end=chunk_end,
             step_seconds=calc_data.step_seconds,
-            tle_data=calc_data.tle,
+            content=calc_data.content,
         )

@@ -2,8 +2,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import structlog
+from api.v1.calculator import router as calc_router
 from api.v1.misk import router as misk_router
-from api.v1.tleanalyser import router as calc_router
 from core.clickhouse import ch_container, setup_clickhouse
 from core.exceptions import TaskNotFinishedException
 from core.logger import StructlogMiddleware
@@ -24,11 +24,11 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
     db_dsl: str | URL
 
-    if settings.db_dsl:
-        db_dsl = settings.db_dsl
-    else:
+    db_dsl = settings.db_dsl or ""
+
+    if not db_dsl:
         logger.error("db_dsl not initialized")
-        db_dsl = ""
+
     db_manager.init(db_dsl=db_dsl)
     setup_clickhouse()
 

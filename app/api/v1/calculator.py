@@ -3,8 +3,8 @@ from api.dependencies.tasks import validate_task_finished
 from core.exceptions import InfrastructureeOperationalException
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse, StreamingResponse
+from schemas.calcreq import CalculationRequest
 from schemas.coordinates import CalculateResponsePagination
-from schemas.tle import CalculateRequest
 from services.calculation import (
     OrbitCalculationService,
     get_orbit_calculations_service,
@@ -17,7 +17,7 @@ router = APIRouter()
 
 @router.post("/coordinates_calculate")
 async def calculate(
-    request: CalculateRequest,
+    request: CalculationRequest,
     service: OrbitCalculationService = Depends(get_orbit_calculations_service),
 ) -> JSONResponse:
     """Calculation of satellite trajectory coordinates using TLE"""

@@ -5,8 +5,10 @@ import numpy as np
 from astropy import units
 from astropy.coordinates import ITRS, TEME, CartesianRepresentation
 from astropy.time import Time
-from schemas.tle import CalculateRequest, TLEData
-from sgp4.api import Satrec, jday
+from schemas.calcreq import CalculationRequest
+from schemas.tle import TLEData
+from sgp4.api import WGS72, Satrec, jday
+from sgp4.omm import initialize
 
 from .base import AstroCore
 
@@ -16,30 +18,29 @@ class AstroSPG4(AstroCore):
 
     @staticmethod
     def compute_coordinate(
-        calc_data: CalculateRequest | None = None,
-        tle: TLEData | None = None,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        step_seconds: int | None = None,
+        calc_data: CalculationRequest,
     ) -> list[dict[str, Any]]:
 
-        if calc_data:
-            raw_line1 = calc_data.tle.line1
-            raw_line2 = calc_data.tle.line2
-            start_time = calc_data.start
-            end_time = calc_data.end
-            step_seconds = calc_data.step_seconds
-        elif tle:
-            raw_line1 = tle.line1
-            raw_line2 = tle.line2
-
+        if isinstance(calc_data.content, TLEData):
+            raw_line1 = calc_data.content.line1
+            raw_line2 = calc_data.content.line2
+            satellite = Satrec.twoline2rv(raw_line1, raw_line2)
         else:
-            raise ValueError("start_time and end_time are required")
+            satellite = Satrec()
+            omm_dict = calc_data.content.model_dump(
+                by_alias=True, exclude={"content", "launch_year"}
+            )
 
-        satellite = Satrec.twoline2rv(raw_line1, raw_line2)
+            if isinstance(calc_data.content.epoch, datetime):
+                omm_dict["EPOCH"] = calc_data.content.epoch.strftime(
+                    "%Y-%m-%dT%H:%M:%S.%f"
+                )
 
-        if start_time is None or end_time is None:
-            raise ValueError("start_time and end_time are required")
+            initialize(satellite, omm_dict, WGS72)
+
+        start_time = calc_data.start
+        end_time = calc_data.end
+        step_seconds = calc_data.step_seconds
 
         start_ts = int(start_time.timestamp())
         end_ts = int(end_time.timestamp())
@@ -49,9 +50,7 @@ class AstroSPG4(AstroCore):
         )
 
         if len(timestamps) == 0:
-            raise ValueError(
-                "Интервал расчета пуст или шаг превышает длительность."
-            )
+            raise ValueError("not valid time range")
 
         dt_objects = timestamps.astype("datetime64[s]")
         years = dt_objects.astype("M8[Y]").astype(int) + 1970

@@ -1,49 +1,31 @@
-from __future__ import annotations
+from typing import Literal
 
-from datetime import datetime
-
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, Field
 
 
 class TLEData(BaseModel):
-    """Две строки TLE в формате NORAD + необязательное название."""
+    content: Literal["tle"] = "tle"
 
     line1: str = Field(
         ...,
         min_length=69,
         max_length=69,
-        description="Первая строка TLE",
+        description="first TLE",
+        examples=[
+            "1 25544U 98067A   24089.70425714  .00014761  00000-0  26402-3 0  9997"
+        ],
     )
     line2: str = Field(
         ...,
         min_length=69,
         max_length=69,
-        description="Вторая строка TLE",
+        description="second TLE",
+        examples=[
+            "2 25544  51.6416 195.8450 0004245 214.3989 240.2317 15.49509425445831"
+        ],
     )
     name: str | None = Field(
         default=None,
         max_length=24,
-        description="Название космического аппарата (опционально)",
+        description="sattelite name",
     )
-
-
-class CalculateRequest(BaseModel):
-    """Базовые параметры расчёта: TLE, интервал, шаг сетки."""
-
-    tle: TLEData = Field(..., description="TLE спутника")
-    start: datetime = Field(..., description="Начало интервала (UTC)")
-    end: datetime = Field(..., description="Конец интервала (UTC, не вкл.)")
-    step_seconds: int = Field(
-        ...,
-        ge=1,
-        le=60,
-        description="Шаг сетки в секундах",
-    )
-
-    @field_validator("end")
-    @classmethod
-    def _end_after_start(cls, v: datetime, info: ValidationInfo) -> datetime:
-        start = info.data.get("start")
-        if start is not None and v <= start:
-            raise ValueError("end должен быть строго больше start")
-        return v
