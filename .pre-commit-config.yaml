@@ -17,7 +17,7 @@ repos:
 
       - id: mypy-services
         name: Mypy
-        entry: bash -c 'for dir in */; do [[ "$dir" =~ ^(\..*|venv/)$ ]] && continue; echo "Checking $dir..."; uv run mypy "$dir"; done'
+        entry: uv run mypy app --config-file app/pyproject.toml
         language: system
         types: [python]
         pass_filenames: false

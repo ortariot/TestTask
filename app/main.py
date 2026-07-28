@@ -1,10 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-
+import structlog
 from api.v1.misk import router as misk_router
 from api.v1.tleanalyser import router as calc_router
 from core.clickhouse import ch_container, setup_clickhouse
@@ -13,14 +10,26 @@ from core.logger import StructlogMiddleware
 from core.logger_config import configure_logging
 from core.settings import settings
 from database import db_manager
+from fastapi import FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import URL
 
 configure_logging(is_dev=settings.is_dev)
+logger = structlog.get_logger()
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
-    db_manager.init(db_dsl=settings.db_dsl)
+    db_dsl: str | URL
+
+    if settings.db_dsl:
+        db_dsl = settings.db_dsl
+    else:
+        logger.error("db_dsl not initialized")
+        db_dsl = ""
+    db_manager.init(db_dsl=db_dsl)
     setup_clickhouse()
 
     yield

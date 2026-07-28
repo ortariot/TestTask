@@ -4,7 +4,6 @@ from contextlib import AbstractContextManager
 from typing import IO, Any, cast
 
 import clickhouse_connect.driver.exceptions as ch_exceptions
-
 from core.clickhouse import ch_container
 from core.exceptions import InfrastructureeOperationalException
 
@@ -13,11 +12,11 @@ class CoordinateService:
     @staticmethod
     async def get_coordinates_paginated(
         task_id: int, page: int, size: int
-    ) -> tuple[int, int]:
+    ) -> Any:
 
         offset = (page - 1) * size
 
-        def _fetch_data() -> list[dict[str, Any]]:
+        def _fetch_data() -> list[dict[str, Any]] | None:
             stmt = """
                 SELECT timestamp, chunk_index, latitude, longitude, altitude
                 FROM coordinates
@@ -25,6 +24,9 @@ class CoordinateService:
                 ORDER BY chunk_index, timestamp
                 LIMIT %s OFFSET %s
             """
+
+            assert ch_container.client is not None
+
             result = ch_container.client.query(
                 stmt, parameters=(task_id, size, offset)
             )
@@ -36,6 +38,9 @@ class CoordinateService:
 
         def _fetch_count() -> int:
             stmt = "SELECT count() FROM coordinates WHERE task_id = %s"
+
+            assert ch_container.client is not None
+
             result = ch_container.client.query(stmt, parameters=(task_id,))
             return int(result.result_rows[0][0])
 
@@ -64,6 +69,9 @@ class CoordinateService:
                 ORDER BY chunk_index, timestamp
                 LIMIT %s OFFSET %s
             """
+
+            assert ch_container.client is not None
+
             return cast(
                 "AbstractContextManager[IO[bytes]]",
                 ch_container.client.raw_stream(
