@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, timedelta
-from typing import cast
+from typing import Any, cast
 
 from fastapi import Depends
 from sqlalchemy import update
@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db_session
 from models import TaskStatus
 from models.tlemeta import CalculationTask
-from repositories import CRUDRepository
+
+from .repositories import CRUDRepository
 
 
 class CalculationTaskRepository(CRUDRepository[CalculationTask]):
@@ -55,7 +56,7 @@ class CalculationTaskRepository(CRUDRepository[CalculationTask]):
                 finished_at=datetime.now(UTC),
             )
         )
-        result = cast("CursorResult", await self._session.execute(stmt))
+        result = cast(CursorResult[Any], await self._session.execute(stmt))
         return result.rowcount > 0
 
     async def fail_timeout_tasks(self, timeout_minutes: int = 30) -> int:
@@ -73,7 +74,7 @@ class CalculationTaskRepository(CRUDRepository[CalculationTask]):
                 finished_at=datetime.now(UTC),
             )
         )
-        result = cast("CursorResult", await self._session.execute(stmt))
+        result = cast(CursorResult[Any], await self._session.execute(stmt))
         return result.rowcount
 
 

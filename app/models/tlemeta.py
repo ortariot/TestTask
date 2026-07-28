@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime
-from typing import Any, ClassVar
+from typing import Any
 
 from sqlalchemy import (
     BIGINT,
@@ -70,7 +70,7 @@ class TLEHistory(Base):
         back_populates="tle_history"
     )
 
-    __table_args__: ClassVar[dict[str, Any]] = {
+    __table_args__: dict[str, Any] = {  # noqa: RUF012
         "postgresql_partition_by": "RANGE (epoch_timestamp)"
     }
 

@@ -7,7 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db_session
 from models.tlemeta import TLEHistory
-from repositories import CRUDRepository
+
+from .repositories import CRUDRepository
 
 
 class TLEHistoryRepository(CRUDRepository[TLEHistory]):

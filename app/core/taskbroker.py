@@ -36,7 +36,12 @@ def _current_task_name() -> str:
 
 @broker.on_event(TaskiqEvents.WORKER_STARTUP)
 async def startup(state: TaskiqState) -> None:  # noqa: ARG001
-    db_manager.init(str(settings.db_dsl.render_as_string(hide_password=False)))
+    if settings.db_dsl:
+        db_dsl = str(settings.db_dsl.render_as_string(hide_password=False))
+    else:
+        logger.info("db_dsl not initialized")
+        db_dsl = ""
+    db_manager.init(db_dsl)
     logger.info("DatabaseSessionManager init success.")
     setup_clickhouse()
     logger.info("ClickHouseContainer init success.")

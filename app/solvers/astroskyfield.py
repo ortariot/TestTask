@@ -1,11 +1,11 @@
-from datetime import UTC
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
 from skyfield.api import EarthSatellite, load
 from skyfield.toposlib import wgs84
 
-from schemas.tle import CalculateRequest
+from schemas.tle import CalculateRequest, TLEData
 
 from .base import AstroCore
 
@@ -19,16 +19,26 @@ class AstrodSkyfield(AstroCore):
 
     @classmethod
     def compute_coordinate(
-        cls, calc_data: CalculateRequest
+        cls,
+        calc_data: CalculateRequest = None,
+        tle: TLEData = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        step_seconds: int | None = None,
     ) -> list[dict[str, Any]]:
         """
         Векторизованный вычислительный движок на NumPy + Skyfield
         """
-        raw_line1 = calc_data.tle.line1
-        raw_line2 = calc_data.tle.line2
-        start_time = calc_data.start
-        end_time = calc_data.end
-        step_seconds = calc_data.step_seconds
+
+        if calc_data:
+            raw_line1 = calc_data.tle.line1
+            raw_line2 = calc_data.tle.line2
+            start_time = calc_data.start
+            end_time = calc_data.end
+            step_seconds = calc_data.step_seconds
+        else:
+            raw_line1 = tle.line1
+            raw_line2 = tle.line2
 
         satellite = EarthSatellite(
             raw_line1, raw_line2, name="SAT", ts=cls._ts

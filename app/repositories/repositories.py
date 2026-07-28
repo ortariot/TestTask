@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, TypeVar, cast
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.engine import CursorResult
@@ -11,7 +11,7 @@ from models.basemodel import Base
 ModelType = TypeVar("ModelType", bound=Base)
 
 
-class AbstractRepository(ABC, Generic[ModelType]):  # noqa: UP046
+class AbstractRepository[ModelType: Base](ABC):
     @abstractmethod
     async def get_by_id(self, id_: Any) -> ModelType | None:
         raise NotImplementedError
@@ -36,7 +36,7 @@ class AbstractRepository(ABC, Generic[ModelType]):  # noqa: UP046
         raise NotImplementedError
 
 
-class CRUDRepository(AbstractRepository[ModelType]):
+class CRUDRepository[ModelType: Base](AbstractRepository[ModelType]):
     """
     Универсальный репозиторий, инкапсулирующий базовые CRUD операции.
     """
@@ -75,7 +75,7 @@ class CRUDRepository(AbstractRepository[ModelType]):
         filter_condition = self._get_pk_filter(id_)
 
         stmt = delete(self._model).where(*filter_condition)
-        result = cast("CursorResult", await self._session.execute(stmt))
+        result = cast(CursorResult[Any], await self._session.execute(stmt))
         return (result.rowcount or 0) > 0
 
     def _get_pk_filter(self, id_: Any) -> list[Any]:
