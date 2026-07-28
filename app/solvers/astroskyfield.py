@@ -2,11 +2,12 @@ from datetime import datetime
 from typing import Any
 
 import numpy as np
-from schemas.calcreq import CalculationRequest
-from schemas.tle import TLEData
 from sgp4.omm import initialize
 from skyfield.api import WGS72, EarthSatellite, Satrec, load
 from skyfield.toposlib import wgs84
+
+from schemas.calcreq import CalculationRequest
+from schemas.tle import TLEData
 
 from .base import AstroCore
 

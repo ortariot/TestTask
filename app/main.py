@@ -2,6 +2,11 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import structlog
+from fastapi import FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import URL
+
 from api.v1.calculator import router as calc_router
 from api.v1.misk import router as misk_router
 from core.clickhouse import ch_container, setup_clickhouse
@@ -10,10 +15,6 @@ from core.logger import StructlogMiddleware
 from core.logger_config import configure_logging
 from core.settings import settings
 from database import db_manager
-from fastapi import FastAPI, Request, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from sqlalchemy import URL
 
 configure_logging(is_dev=settings.is_dev)
 logger = structlog.get_logger()

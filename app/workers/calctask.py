@@ -3,6 +3,7 @@ import math
 from datetime import UTC, datetime, timedelta
 
 import structlog
+
 from core.clickhouse import ch_container
 from core.settings import settings
 from core.taskbroker import broker

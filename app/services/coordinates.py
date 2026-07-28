@@ -4,6 +4,7 @@ from contextlib import AbstractContextManager
 from typing import IO, Any, cast
 
 import clickhouse_connect.driver.exceptions as ch_exceptions
+
 from core.clickhouse import ch_container
 from core.exceptions import InfrastructureeOperationalException
 

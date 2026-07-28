@@ -3,9 +3,11 @@ import math
 from datetime import datetime, timedelta
 from typing import Any
 
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.settings import settings
 from database import get_db_session
-from fastapi import Depends
 from models import CalculationTask
 from repositories import (
     CalculationTaskRepository,
@@ -23,7 +25,6 @@ from schemas.orbits import OrbitData
 from schemas.tle import TLEData
 from solvers.astrospg4 import get_solver
 from solvers.base import AstroCore
-from sqlalchemy.ext.asyncio import AsyncSession
 from workers.calctask import run_master_calculation
 
 
@@ -31,7 +32,7 @@ class OrbitCalculationService:
     FIRST_LAUNCH = 57
     FAST_MODE_LIMIT = settings.fast_mode_limit
 
-    def __init__(
+    def __init__(  # noqa: PLR0913, PLR0917
         self,
         session: AsyncSession,
         satellite_repo: SatelliteRepository,

@@ -1,8 +1,9 @@
 import structlog
-from api.dependencies.tasks import validate_task_finished
-from core.exceptions import InfrastructureeOperationalException
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse, StreamingResponse
+
+from api.dependencies.tasks import validate_task_finished
+from core.exceptions import InfrastructureeOperationalException
 from schemas.calcreq import CalculationRequest
 from schemas.coordinates import CalculateResponsePagination
 from services.calculation import (

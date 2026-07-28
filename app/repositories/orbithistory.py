@@ -1,12 +1,13 @@
 from datetime import datetime
 
-from database import get_db_session
 from fastapi import Depends
-from models.context import OrbitHistory
-from schemas.orbits import OrbitData
 from sqlalchemy import desc, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from database import get_db_session
+from models.context import OrbitHistory
+from schemas.orbits import OrbitData
 
 from .repositories import CRUDRepository
 

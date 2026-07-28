@@ -5,10 +5,11 @@ import numpy as np
 from astropy import units
 from astropy.coordinates import ITRS, TEME, CartesianRepresentation
 from astropy.time import Time
-from schemas.calcreq import CalculationRequest
-from schemas.tle import TLEData
 from sgp4.api import WGS72, Satrec, jday
 from sgp4.omm import initialize
+
+from schemas.calcreq import CalculationRequest
+from schemas.tle import TLEData
 
 from .base import AstroCore
 

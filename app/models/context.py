@@ -1,7 +1,6 @@
 import enum
 from datetime import datetime
 
-from helpers.utils import enum_check_constraint
 from sqlalchemy import (
     BIGINT,
     CHAR,
@@ -18,6 +17,8 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from helpers.utils import enum_check_constraint
 
 from .basemodel import Base
 
