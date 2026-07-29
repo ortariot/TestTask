@@ -75,7 +75,7 @@ class CRUDRepository[ModelType: Base](AbstractRepository[ModelType]):
         return (result.rowcount or 0) > 0
 
     def _get_pk_filter(self, id_: Any) -> list[Any]:
-        """Helper for building WHERE clause for single and composite PKs."""
+
         mapper = self._model.__mapper__
         pk_columns = mapper.primary_key
 
