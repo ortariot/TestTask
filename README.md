@@ -1,129 +1,147 @@
-# SAT Coordinates Service
+# 🛰️ SAT Coordinates Service
 
-<p align="center"><strong>Микросервис расчёта координат космических аппаратов по данным TLE</strong></p>
+<div align="center">
 
-Высокопроизводительный бэкенд-сервис для расчёта координат космических аппаратов (КА) на основе орбитальных данных формата **TLE** (Two-Line Element). Сервис рассчитывает траекторию спутника на заданном временном интервале с шагом дискретизации от 1 до 60 секунд и возвращает координаты в системе отсчёта **WGS84** (широта, долгота — градусы, высота — км).
-
----
-
-## Содержание
-
-- [Возможности](#возможности)
-- [Архитектура](#архитектура)
-- [Стек технологий](#стек-технологий)
-- [Структура проекта](#структура-проекта)
-- [Быстрый старт (Docker Compose)](#быстрый-старт-docker-compose)
-- [Конфигурация](#конфигурация)
-- [API](#api)
-  - [Расчёт координат](#расчёт-координат)
-  - [Получение результата (пагинация)](#получение-результата-пагинация)
-  - [Скачивание результата (CSV-стрим)](#скачивание-результата-csv-стрим)
-  - [Health-check](#health-check)
-- [Вычислительное ядро](#вычислительное-ядро)
-- [Модели данных](#модели-данных)
-- [Качество кода](#качество-кода)
+**Высокопроизводительный микросервис расчёта координат космических аппаратов по данным TLE / OMM**
 
 ---
 
-## Возможности
+`FastAPI` · `Pydantic v2` · `SQLAlchemy 2.0 async` · `SGP4` · `Skyfield` · `Astropy` · `NumPy` · `ClickHouse` · `TaskIQ`
 
-- **Расчёт по TLE** — приём TLE, временного интервала и шага сетки (1–60 с).
-- **Векторизованные вычисления** — расчёт всего интервала за один вызов `sgp4_array`/Skyfield.
-- **Гибридный режим**:
-  - **Fast** — до `FAST_MODE_LIMIT` точек: расчёт выполняется синхронно в пуле потоков и возвращается сразу.
-  - **Slow** — сверх лимита: создаётся задача, расчёт дробится на чанки и выполняется воркерами через очередь (TaskIQ + Redis).
-- **WGS84** — широта/долгота в градусах, высота в км.
-- **Хранилище метаданных** — PostgreSQL: реестр КА (NORAD ID, COSPAR ID, классификация, год запуска) и история TLE.
-- **Хранилище временных рядов** — ClickHouse: миллионы точек координат с партицированием по месяцам.
-- **Постраничная выборка** и **CSV-стриминг** больших результатов.
-- **Идемпотентность** — повторная загрузка того же TLE не создаёт дубликатов (`ON CONFLICT DO NOTHING`).
-- **Отказоустойчивость задач** — scheduled-джоба переводит «зависшие» задачи в статус `failed` по таймауту.
-- **Наблюдаемость** — structlog-логирование каждого запроса, `/health` endpoint.
-- **Строгая типизация** — MyPy strict + SQLAlchemy mypy plugin + Pydantic mypy plugin.
+</div>
+
+---
+## Пояснительная записка
+
+Комментарий к решению 
+
+
+Основным условием за которое зацепился было вот это:
+```Сервис должен быстро рассчитать и вернуть координаты КА на заданный интервал времени.```
+
+Что следует считать быстро? tle снимается со спутника несколько раз в сутки и достаточно точный расчет можно совершить в диапазоне 1-2 суток от момента получения tle. Дальнейшие расчёты накапливают погрешности и мало чего общего будут иметь с реальными показателями спутника. То есть приблизительно нужно рассчитывать 200000 точек и делать это быстро.    
+
+Мне удалось сделать расчетки на основе skyfield и sgp4 которые считают 10000 точек примерно за 5 секунд. Это не быстро но эти данные еще нужно передать в ответ. В итоге я ограничил быстрый расчёт 5000 точек на моём железе. И выполняю эти расчёты на лету 
+
+Для того чтобы выполнять обсчет 200000 и более потребовалось создать гибридную архитектуру и использовать очередь сообщений на основе TaskQ + Redis и выполнять расчёты параллельно. Этого решения вполне достаточно для поставленной задачи. В финальной версии проекта я также использовал clickhouse и мне удалось выполнить расчёты 15000000 координат ~ 60 секунд. Это уже избыточно для задачи, и не понятно что с этими координатами сразу потом делать, но считаю производительность более чем достойная. Пришлось добавить в сервис 2 эндпоинт чтобы отдавать эти результаты либо в виде файла либо с пагинацией. 
+
+Также я использовал базу данных postgres для сохранения истории расчётов, метаданных, и контроля за выполнением задач. 
+
+В Принципе была идея, на лету обновлять TLE, забирать их из API или настроить ETL с https://celestrak.org/ и получать более точные результаты, но руки уже не дошли.
+
+
+
+## О проекте
+
+Сервис принимает орбитальные данные КА в формате **TLE** (Two-Line Element) или **JSON/OMM** (орбитальные элементы), временной интервал и шаг дискретизации (1–60 с), после чего **быстро** рассчитывает траекторию спутника и возвращает координаты в системе отсчёта **WGS84** (широта, долгота — градусы, высота — км).
+
+Расчёт опирается на векторизованные вычисления (`sgp4_array` + NumPy), поддерживает интервалы как в прошлое, так и в будущее относительно эпохи TLE, и автоматически выбирает режим выполнения — **синхронный** (для небольших интервалов) или **асинхронный через очередь задач** (для больших).
+
 
 ---
 
-## Архитектура
+## Ключевые возможности
 
-Сервис следует принципам **Clean Architecture** и **Dependency Injection**:
+| Возможность | Реализация |
+|---|---|
+| **Векторизованный расчёт** | Один вызов `sgp4_array` на весь интервал, без Python-циклов по точкам |
+| **Стратегия вычислений (Strategy + DI)** | `AstroCore` (ABC) → `AstroSPG4` (SGP4 + Astropy TEME→ITRS) и `AstrodSkyfield` (Skyfield wgs84) |
+| **Гибридный режим Fast/Slow** | ≤ `FAST_MODE_LIMIT` точек — ответ сразу; свыше — очередь TaskIQ + чанкинг |
+| **Корректная система координат** | TEME → ITRS с учётом вращения Земли (Astropy) → WGS84 (lat/lon/alt) |
+| **Строгая валидация TLE** | Длина 69, префиксы, NORAD-checksum, совпадение спутника, sanity-check SGP4 |
+| **Хранилище метаданных** | PostgreSQL: реестр КА, история TLE/OMM, реестр задач |
+| **Хранилище временных рядов** | ClickHouse (MergeTree, partition by month) + CSV-стриминг до 1 000 000 строк |
+| **Clean Architecture + DI** | `api → services → repositories → models`, абстракции и контракты |
+| **Строгая типизация** | MyPy strict + плагины Pydantic и SQLAlchemy |
+| **Наблюдаемость** | structlog-логирование каждого запроса, `/health` endpoint |
+| **Отказоустойчивость задач** | Планировщик переводит «зависшие» задачи в статус `failed` по таймауту |
 
-```
-┌───────────────────────────────────────────────────────────┐
-│                      API Layer (FastAPI)                  │
-│   routers · dependencies · Pydantic schemas               │
-└───────────────┬──────────────────────────┬────────────────┘
-                │                          │
-┌───────────────▼───────────┐  ┌────────────▼───────────────┐
-│    Services (use cases)   │  │   Workers (TaskIQ tasks)   │
-│  OrbitCalculationService  │  │  run_master_calculation    │
-│  CoordinateService        │  │  process_chunk             │
-└───────┬──────────┬────────┘  └────────────┬───────────────┘
-        │          │                        │
-┌───────▼────┐ ┌───▼────────────┐  ┌────────▼────────────────┐
-│Repositories│ │  Solvers (DI)  │  │ Infra (PG / CH / Redis) │
-│ CRUD + spec│ │  SGP4/Skyfield │  │                         │
-└──────┬─────┘ └────────────────┘  └─────────────────────────┘
+---
+
+##  Архитектура
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                      API Layer (FastAPI)                        │
+│            routers · dependencies · Pydantic schemas            │
+└───────────────┬────────────────────────────┬────────────────────┘
+                │                            │
+┌───────────────▼──────────────┐  ┌──────────▼───────────────────┐
+│     Services (use cases)     │  │    Workers (TaskIQ tasks)    │
+│  OrbitCalculationService     │  │     run_master_calculation   │
+│  CoordinateService           │  │       process_chunk          │
+└───────┬──────────────┬───────┘  └────────────┬─────────────────┘
+        │              │                       │
+┌───────▼──────┐ ┌─────▼──────────┐  ┌─────────▼──────────────────┐
+│ Repositories │ │  Solvers (DI)  │  │  Infra (PG / CH / Redis)   │
+│  CRUD + spec │ │ SGP4 / Skyfield│  │                            │
+└──────┬───────┘ └────────────────┘  └────────────────────────────┘
        │
-┌──────▼────────────────────────────────────────────────────┐
-│                Models (SQLAlchemy 2.0)                    │
-└───────────────────────────────────────────────────────────┘
+┌──────▼─────────────────────────────────────────────────────────┐
+│                  Models (SQLAlchemy 2.0, async)                │
+└────────────────────────────────────────────────────────────────┘
 ```
 
-**Ключевые паттерны:**
-
-- **Repository Pattern** — абстрактный `AbstractRepository[ModelType]` → generic `CRUDRepository` → специализированные репозитории (`SatelliteRepository`, `TLEHistoryRepository`, `CalculationTaskRepository`).
-- **Strategy Pattern** — `AstroCore` (ABC) с реализациями `AstroSPG4` (SGP4 + Astropy TEME→ITRS) и `AstrodSkyfield` (Skyfield wgs84). Выбор реализации — через DI.
-- **Unit of Work** — `DatabaseSessionManager` с контекстным менеджером сессии и автоматическим rollback.
-- **Async-to-thread** — блокирующие вычисления (SGP4/Skyfield, ClickHouse) выносятся в пул потоков (`asyncio.to_thread` / `ThreadPoolExecutor`).
+**Паттерны:**
+- **Repository** — generic `CRUDRepository[ModelType]` → специализированные репозитории.
+- **Strategy** — переключаемое вычислительное ядро через DI.
+- **Unit of Work** — `DatabaseSessionManager` с автоматическим rollback.
+- **Async-to-thread** — блокирующие вычисления (SGP4/Skyfield, ClickHouse) выносятся в пул потоков.
 
 ---
 
-## Стек технологий
+##  Стек технологий
 
-| Слой                      | Технология                                                          |
-| ------------------------- | ------------------------------------------------------------------- |
-| Язык / фреймворк          | Python 3.12+, FastAPI, Uvicorn                                      |
-| Контракты / валидация     | Pydantic v2, pydantic-settings                                      |
-| ORM / БД (метаданные)     | SQLAlchemy 2.0+ (async), asyncpg, Alembic                           |
-| БД метаданных             | PostgreSQL 17                                                        |
-| БД временных рядов        | ClickHouse (MergeTree, partition by month)                          |
-| Очередь задач             | TaskIQ + Redis Streams (broker + result backend + scheduler)        |
-| Вычислительное ядро       | NumPy, SGP4, Astropy, Skyfield                                      |
-| Логирование               | structlog                                                           |
-| Качество кода             | Ruff, MyPy (strict), pre-commit                                     |
-| Инфраструктура            | Docker (multi-stage), Docker Compose                                |
+| Слой | Технология |
+|---|---|
+| Язык / фреймворк | **Python 3.12+**, FastAPI, Uvicorn |
+| Контракты / валидация | Pydantic v2, pydantic-settings |
+| ORM / БД (метаданные) | SQLAlchemy 2.0+ (async), asyncpg, Alembic |
+| БД метаданных | PostgreSQL 17 |
+| БД временных рядов | ClickHouse (MergeTree, partition by month) |
+| Очередь задач | TaskIQ + Redis Streams |
+| Вычислительное ядро | NumPy, SGP4, Astropy, Skyfield |
+| Логирование | structlog |
+| Качество кода | Ruff, MyPy (strict), pre-commit |
+| Инфраструктура | Docker (multi-stage), Docker Compose |
 
 ---
 
-## Структура проекта
+##  Структура проекта
 
-```
+```text
 .
-├── docker-compose.yml              # Полное окружение: PG, Redis, ClickHouse, API, worker, scheduler
-├── .env                            # Переменные окружения
+├── docker-compose.yml              # Полное окружение одной командой
+├── .env _example                   # Шаблон переменных окружения
 ├── config/
 │   └── init-clickhouse.sql         # DDL ClickHouse (авто-инициализация)
+├── tests/                          # Тесты API-контракта и срезов времени
+│   ├── conftest.py
+│   ├── test_coordinates_validation.py
+│   └── test_time_slicing.py
 └── app/
     ├── main.py                     # Точка входа FastAPI, lifespan, middleware
     ├── Dockerfile                  # Multi-stage build (uv)
-    ├── pyproject.toml              # Зависимости, Ruff, MyPy
+    ├── pyproject.toml              # Зависимости, Ruff, MyPy, pytest
     ├── database.py                 # DatabaseSessionManager (async SQLAlchemy)
     ├── api/
     │   ├── dependencies/           # DI-провайдеры, валидаторы
     │   └── v1/
-    │       ├── tleanalyser.py      # Endpoints расчёта и выдачи координат
-    │       └── misk.py             # /health
+    │       ├── calculator.py       # Endpoints расчёта и выдачи координат
+    │       └── misc.py             # /health
     ├── core/
     │   ├── settings.py             # pydantic-settings конфигурация
     │   ├── clickhouse.py           # ClickHouse клиент + пул потоков
-    │   ├── taskbroker.py           # TaskIQ broker/scheduler, startup/shutdown
+    │   ├── taskbroker.py           # TaskIQ broker/scheduler
     │   ├── exceptions.py           # Доменные исключения
     │   └── logger*.py              # structlog конфигурация + middleware
     ├── models/
-    │   └── tlemeta.py              # SatelliteMetadata, TLEHistory, CalculationTask
+    │   └── context.py              # SatelliteMetadata, TLEHistory, OrbitHistory, CalculationTask
     ├── schemas/
-    │   ├── tle.py                  # CalculateRequest, TLEData
-    │   └── coordinates.py          # CoordPoint, CalculateResponse
+    │   ├── calcreq.py              # CalculationRequest (union с дискриминатором)
+    │   ├── coordinates.py          # CoordPoint, CalculateResponse
+    │   ├── tle.py                  # TLEData (строгая валидация TLE)
+    │   └── orbits.py               # OrbitData (OMM/JSON)
     ├── repositories/               # CRUDRepository + специализированные репозитории
     ├── services/
     │   ├── calculation.py          # OrbitCalculationService — оркестрация расчёта
@@ -139,72 +157,71 @@
 
 ---
 
-## Быстрый старт (Docker Compose)
-
+##  Быстрый старт (Docker Compose)
 
 ```bash
 # 1. Клонировать репозиторий
 git clone https://github.com/ortariot/TestTask.git
 cd TestTask
 
-mv .emv_example .env
+# 2. Подготовить файл окружения
+cp ".env _example" .env
 
-# 2. Запустить все сервисы
+# 3. Поднять всю инфраструктуру одной командой
 docker compose up -d --build
 ```
 
 После запуска:
 
-- **API**: `http://localhost:8000`
-- **Swagger UI**: `http://localhost:8000/docs`
-- **Health**: `http://localhost:8000/health`
+| Сервис | URL / назначение |
+|---|---|
+| **API** | `http://localhost:8000` |
+| **Swagger UI** | `http://localhost:8000/docs` |
+| **Health-check** | `http://localhost:8000/health` |
 
-Миграции БД применяются **автоматически** при старте контейнера API (`alembic upgrade head`). Схема ClickHouse создаётся из `config/init-clickhouse.sql`.
+Миграции PostgreSQL применяются **автоматически** при старте API (`alembic upgrade head`). Схема ClickHouse создаётся из `config/init-clickhouse.sql`.
 
 ### Состав сервисов
 
-| Сервис          | Назначение                                              |
-| --------------- | ------------------------------------------------------- |
-| `sat-postgres`  | Метаданные КА, история TLE, реестр задач                |
-| `sat-redis`     | Брокер очереди задач (TaskIQ Streams)                   |
-| `sat-clickhouse`| Хранилище временных рядов координат                     |
-| `sat-api`       | FastAPI-приложение (REST API)                           |
-| `sat-worker`    | TaskIQ-воркеры (фоновый расчёт чанков, 4 воркера)       |
-| `sat-scheduler` | TaskIQ-планировщик (контроль зависших задач)            |
+| Контейнер | Назначение |
+|---|---|
+| `sat-postgres` | Метаданные КА, история TLE/OMM, реестр задач |
+| `sat-redis` | Брокер очереди задач (TaskIQ Streams) |
+| `sat-clickhouse` | Хранилище временных рядов координат |
+| `sat-api` | FastAPI-приложение (REST API) |
+| `sat-worker` | TaskIQ-воркеры (фоновый расчёт чанков) |
+| `sat-scheduler` | TaskIQ-планировщик (контроль зависших задач) |
 
 ---
 
-## Конфигурация
+##  Тесты
 
-Все параметры задаются через переменные окружения (`.env`):
+Проект покрыт тестами на Тесты мокают вычислительное ядро и проверяют валидацию запросов, обработку невалидных TLE, граничные значения шага, монотонность и количество точек.
 
-| Переменная          | По умолчанию     | Описание                                     |
-| ------------------- | ---------------- | -------------------------------------------- |
-| `POSTGRES_USER`     | `postgres`       | Пользователь PostgreSQL                       |
-| `POSTGRES_PASSWORD` | `postgres`       | Пароль PostgreSQL                             |
-| `POSTGRES_DB`       | `app_db`         | База данных PostgreSQL                        |
-| `DB_HOST`           | `sat-postgres`   | Хост PostgreSQL                               |
-| `DB_PORT`           | `5432`           | Порт PostgreSQL                               |
-| `REDIS_HOST`        | `sat-redis`      | Хост Redis                                    |
-| `REDIS_PORT`        | `6379`           | Порт Redis                                    |
-| `REDIS_PASSWORD`    | —                | Пароль Redis                                  |
-| `CLICKHOUSE_HOST`   | `sat-clickhouse` | Хост ClickHouse                               |
-| `CLICKHOUSE_PORT`   | `8123`           | HTTP-порт ClickHouse                          |
-| `CLICKHOUSE_DB`     | `sat`            | База данных ClickHouse                        |
-| `FAST_MODE_LIMIT`   | `5000`           | Порог точек для синхронного расчёта           |
-| `TASKQ_TIMEOUT`     | `3600`           | Таймаут задачи (сек) перед пометкой `failed`  |
+```bash
+cd app
+
+# Запуск всех тестов
+uv run pytest -v
+
+# Только валидация контрактов (TLE, шаг, даты)
+uv run pytest -v -m validation
+
+# Только проверка срезов времени (кол-во точек, монотонность)
+uv run pytest -v -m time_slicing
+```
 
 ---
 
-## API
+## 📡 API
 
-### Расчёт координат
+### 1. Расчёт координат
 
 `POST /coordinates_calculate`
 
-Принимает TLE, временной интервал и шаг сетки. Если число точек ≤ `FAST_MODE_LIMIT` — возвращает результат сразу. Иначе — создаёт фоновую задачу и отвечает `202` с `task_id`.
+Принимает TLE или OMM, временной интервал и шаг сетки. Если число точек ≤ `FAST_MODE_LIMIT` — возвращает результат сразу. Иначе — создаёт фоновую задачу и отвечает `202` с `task_id`.
 
-#### Пример запроса (на основе реального TLE ISS с Celestrak)
+#### Пример запроса по TLE (ISS с Celestrak)
 
 ```bash
 curl -X POST http://localhost:8000/coordinates_calculate \
@@ -219,10 +236,12 @@ curl -X POST http://localhost:8000/coordinates_calculate \
         "start": "2026-07-28T04:00:00Z",
         "end": "2026-07-28T05:00:00Z",
         "step_seconds": 10
-    }
-   '
+    }'
+```
 
+#### Пример запроса по JSON/OMM (Progress-MS33)
 
+```bash
 curl -X POST http://localhost:8000/coordinates_calculate \
   -H "Content-Type: application/json" \
   -d '{
@@ -249,9 +268,7 @@ curl -X POST http://localhost:8000/coordinates_calculate \
         "start": "2026-07-28T04:00:00Z",
         "end": "2026-07-28T05:00:00Z",
         "step_seconds": 10
-    }
-   '
-
+    }'
 ```
 
 **Быстрый ответ (≤ 5000 точек):**
@@ -259,9 +276,9 @@ curl -X POST http://localhost:8000/coordinates_calculate \
 ```json
 {
   "points": [
-    {"timestamp": "2025-07-28T12:00:00.000", "latitude": 45.12, "longitude": 12.34, "altitude": 420.5}
+    {"timestamp": "2026-07-28T04:00:00.000", "latitude": 45.12, "longitude": 12.34, "altitude": 420.5}
   ],
-  "total": 360
+  "total": 361
 }
 ```
 
@@ -274,16 +291,12 @@ curl -X POST http://localhost:8000/coordinates_calculate \
 }
 ```
 
----
-
-### Получение результата (пагинация)
+### 2. Получение результата (пагинация)
 
 `GET /tasks/{task_id}/coordinates?page=1&size=100`
 
-Возвращает координаты постранично. Если задача ещё не завершена — ответ `202` с текущим статусом.
-
 ```bash
-curl http://localhost:8000/tasks/42/coordinates?page=1&size=100
+curl "http://localhost:8000/tasks/42/coordinates?page=1&size=100"
 ```
 
 ```json
@@ -297,21 +310,15 @@ curl http://localhost:8000/tasks/42/coordinates?page=1&size=100
 }
 ```
 
----
-
-### Скачивание результата (CSV-стрим)
+### 3. Скачивание результата (CSV-стрим)
 
 `GET /tasks/{task_id}/coordinates/download?offset_row=0&limit_row=1000000`
 
-Возвращает CSV-поток (до 1 000 000 строк) — удобно для выгрузки больших расчётов без загрузки всего массива в память.
-
 ```bash
-curl -OJ http://localhost:8000/tasks/42/coordinates/download
+curl -OJ "http://localhost:8000/tasks/42/coordinates/download"
 ```
 
----
-
-### Health-check
+### 4. Health-check
 
 `GET /health`
 
@@ -319,16 +326,15 @@ curl -OJ http://localhost:8000/tasks/42/coordinates/download
 { "status": "ok", "version": "0.0.1" }
 ```
 
-
 ---
 
-## Вычислительное ядро
+##  Вычислительное ядро
 
 Реализованы две стратегии расчёта (наследники `AstroCore`), переключаемые через DI:
 
-### 1. AstroSPG4 (основной)
+### AstroSPG4 (основной)
 
-```
+```text
 TLE → Satrec.twoline2rv → sgp4_array(jd, fr) → TEME (км)
     → Astropy TEME→ITRS → EarthLocation → WGS84 (lat, lon, alt)
 ```
@@ -337,15 +343,13 @@ TLE → Satrec.twoline2rv → sgp4_array(jd, fr) → TEME (км)
 - Преобразование координат: **TEME → ITRS** через Astropy (учёт вращения Земли).
 - Фильтрация точек с ненулевым кодом ошибки SGP4.
 
-### 2. AstrodSkyfield (альтернативный)
+### AstrodSkyfield (альтернативный)
 
-```
+```text
 TLE → EarthSatellite → satellite.at(times) → wgs84.subpoint → (lat, lon, alt)
 ```
 
-- Использует встроенную реализацию SGP4 и модели wgs84 из Skyfield.
-
-Оба ядра строят массив `timestamps` через `np.arange`, формируют bulk-запрос к расчётному движку и возвращают список точек без Python-циклов по вычислениям.
+Оба ядра строят массив `timestamps` через `np.arange`, формируют bulk-запрос к расчётному движку и возвращают точки без Python-циклов по вычислениям.
 
 ---
 
@@ -355,38 +359,36 @@ TLE → EarthSatellite → satellite.at(times) → wgs84.subpoint → (lat, lon,
 
 **`satellite_metadata`** — реестр космических аппаратов:
 
-| Поло             | Тип         | Описание                                   |
-| ---------------- | ----------- | ------------------------------------------ |
-| `norad_id` (PK)  | BIGINT      | NORAD ID                                   |
-| `cospar_id` (UQ) | CHAR(8)     | COSPAR ID (международный идентификатор)     |
-| `classification` | CHAR(1)     | U/C/S                                      |
-| `launch_year`    | SMALLINT    | Год запуска (≥ 1957)                       |
-| `created_at`     | TIMESTAMP   | —                                          |
-| `updated_at`     | TIMESTAMP   | —                                          |
+| Поле | Тип | Описание |
+|---|---|---|
+| `norad_id` (PK) | BIGINT | NORAD ID |
+| `cospar_id` (UQ) | VARCHAR(15) | COSPAR ID (международный идентификатор) |
+| `classification` | CHAR(1) | U/C/S |
+| `launch_year` | SMALLINT | Год запуска (≥ 1957) |
+| `created_at` / `updated_at` | TIMESTAMP | — |
 
-**`tle_history`** — история TLE (RANGE-партиционирование по `epoch_timestamp`):
+**`tle_history`** — история TLE (композитный PK `norad_id` + `epoch_timestamp`):
 
-| Поло                          | Тип       | Описание                          |
-| ----------------------------- | --------- | --------------------------------- |
-| `norad_id` (PK, FK)           | BIGINT    | Ссылка на `satellite_metadata`    |
-| `epoch_timestamp` (PK)        | TIMESTAMP | Эпоха TLE                         |
-| `raw_line1` / `raw_line2`     | CHAR(69)  | Строки TLE                        |
+| Поле | Тип | Описание |
+|---|---|---|
+| `norad_id` (PK, FK) | BIGINT | Ссылка на `satellite_metadata` |
+| `epoch_timestamp` (PK) | TIMESTAMP | Эпоха TLE |
+| `raw_line1` / `raw_line2` | CHAR(69) | Строки TLE |
+
+**`orbit_history`** — история OMM/JSON (композитный PK `norad_cat_id` + `epoch`).
 
 **`calculation_tasks`** — реестр задач расчёта:
 
-| Поло             | Тип         | Описание                                  |
-| ---------------- | ----------- | ----------------------------------------- |
-| `id` (PK)        | BIGINT      | Автоинкремент                              |
-| `start_time`     | TIMESTAMPTZ | Начало интервала расчёта                   |
-| `end_time`       | TIMESTAMPTZ | Конец интервала расчёта                    |
-| `total_points`   | BIGINT      | Кол-во точек                               |
-| `status`         | VARCHAR(20) | `pending` / `processing` / `success` / `failed` |
-| `task_type`      | VARCHAR(20) | `fast` / `slow` / `precision`              |
-| `chunks_total`   | SMALLINT    | Всего чанков                               |
-| `chunks_done`    | SMALLINT    | Выполнено чанков                           |
-| `used_tle_*`     | —           | FK на TLE (norad_id + epoch)               |
-| `started_at`     | TIMESTAMPTZ | —                                          |
-| `finished_at`    | TIMESTAMPTZ | —                                          |
+| Поле | Тип | Описание |
+|---|---|---|
+| `id` (PK) | BIGINT | Автоинкремент |
+| `start_time` / `end_time` | TIMESTAMPTZ | Интервал расчёта |
+| `total_points` | BIGINT | Кол-во точек |
+| `status` | VARCHAR(20) | `pending` / `processing` / `success` / `failed` |
+| `task_type` | VARCHAR(20) | `fast` / `slow` / `precision` |
+| `chunks_total` / `chunks_done` | SMALLINT | Прогресс чанков |
+| `used_tle_*` / `used_orbit_*` | — | FK на источник данных (XOR-констрейнт) |
+| `started_at` / `finished_at` | TIMESTAMPTZ | — |
 
 ### ClickHouse
 
@@ -407,11 +409,29 @@ ORDER BY (task_id, timestamp);
 
 ---
 
-## Качество кода
+## Конфигурация
 
-- **Ruff** — расширенный набор правил: `E`, `W`, `F`, `I`, `B`, `C4`, `UP`, `ARG`, `PTH`, `S`, `BLE`, `ERA`, `PL`, `RUF`.
-- **MyPy strict** с плагинами Pydantic и SQLAlchemy.
-- **pre-commit** хуки для автоматической проверки перед коммитом.
+Все параметры задаются через переменные окружения (`.env`):
+
+| Переменная | По умолчанию | Описание |
+|---|---|---|
+| `POSTGRES_USER` | `postgres` | Пользователь PostgreSQL |
+| `POSTGRES_PASSWORD` | `postgres` | Пароль PostgreSQL |
+| `POSTGRES_DB` | `app_db` | База данных PostgreSQL |
+| `DB_HOST` | `sat-postgres` | Хост PostgreSQL |
+| `DB_PORT` | `5432` | Порт PostgreSQL |
+| `REDIS_HOST` | `sat-redis` | Хост Redis |
+| `REDIS_PORT` | `6379` | Порт Redis |
+| `REDIS_PASSWORD` | — | Пароль Redis |
+| `CLICKHOUSE_HOST` | `sat-clickhouse` | Хост ClickHouse |
+| `CLICKHOUSE_PORT` | `8123` | HTTP-порт ClickHouse |
+| `CLICKHOUSE_DB` | `sat` | База данных ClickHouse |
+| `FAST_MODE_LIMIT` | `5000` | Порог точек для синхронного расчёта |
+| `TASKQ_TIMEOUT` | `3600` | Таймаут задачи (сек) перед пометкой `failed` |
+
+---
+
+## Качество кода
 
 ```bash
 cd app
@@ -420,6 +440,10 @@ cd app
 uv run ruff check .
 uv run ruff format .
 
-# Проверка типов
+# Проверка типов (strict + плагины Pydantic/SQLAlchemy)
 uv run mypy .
 ```
+
+- **Ruff** — расширенный набор правил: `E`, `W`, `F`, `I`, `B`, `C4`, `UP`, `ARG`, `PTH`, `S`, `BLE`, `ERA`, `PL`, `RUF`.
+- **MyPy strict** с плагинами Pydantic и SQLAlchemy.
+- **pre-commit** хуки для автоматической проверки перед коммитом.
