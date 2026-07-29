@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from api.dependencies.tasks import validate_task_finished
-from core.exceptions import InfrastructureeOperationalException
+from core.exceptions import InfrastructureOperationalException
 from schemas.calcreq import CalculationRequest
 from schemas.coordinates import CalculateResponsePagination
 from services.calculation import (
@@ -21,20 +21,17 @@ async def calculate(
     request: CalculationRequest,
     service: OrbitCalculationService = Depends(get_orbit_calculations_service),
 ) -> JSONResponse:
-    """Calculation of satellite trajectory coordinates using TLE"""
+    """Calculation of satellite coordinates using TLE or Orbit coordinate"""
 
     res = await service.calculate_satellite_position(request)
 
-    if res:
-        return JSONResponse(content=res)
+    if not res:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Could not calculate coordinates for the given parameters",
+        )
 
-    return JSONResponse(
-        content={
-            "mes": "the task has been placed in the queue.",
-            "task_id": "1",
-        },
-        status_code=status.HTTP_202_ACCEPTED,
-    )
+    return JSONResponse(content=res)
 
 
 @router.get(
@@ -55,16 +52,16 @@ async def get_coordinates_page(
         return CalculateResponsePagination(
             points=res, page=page, size=size, total=total
         )
-    except InfrastructureeOperationalException as error:
+    except InfrastructureOperationalException as error:
         logger.exception(
-            "ClickHouse infrastructure failure for task %s wit error %s",
+            "ClickHouse infrastructure failure for task %s with error %s",
             task_id,
             error,
         )
 
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="database not aviable",
+            detail="database not available",
         ) from None
 
 
@@ -84,16 +81,16 @@ async def download_coordinates_file(
         file_stream = await coordinate_service.get_coordinates_file_stream(
             task_id=task_id, offset_row=offset_row, limit_row=limit_row
         )
-    except InfrastructureeOperationalException as error:
+    except InfrastructureOperationalException as error:
         logger.exception(
-            "ClickHouse infrastructure failure for task %s wit error %s",
+            "ClickHouse infrastructure failure for task %s with error %s",
             task_id,
             error,
         )
 
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="database not aviable",
+            detail="database not available",
         ) from None
 
     filename = (

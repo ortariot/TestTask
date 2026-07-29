@@ -45,11 +45,11 @@ class SatelliteMetadata(TimestampMixin, Base):
 
     launch_year: Mapped[int] = mapped_column(SmallInteger, nullable=False)
 
-    tle_history: Mapped[list["TLEHistory"]] = relationship(
+    tle_history: Mapped[list[TLEHistory]] = relationship(
         back_populates="satellite", cascade="all, delete-orphan"
     )
 
-    orbit_history: Mapped[list["OrbitHistory"]] = relationship(
+    orbit_history: Mapped[list[OrbitHistory]] = relationship(
         back_populates="satellite", cascade="all, delete-orphan"
     )
 
@@ -71,7 +71,7 @@ class TLEHistory(Base):
     raw_line1: Mapped[str] = mapped_column(CHAR(69), nullable=False)
     raw_line2: Mapped[str] = mapped_column(CHAR(69), nullable=False)
 
-    satellite: Mapped["SatelliteMetadata"] = relationship(
+    satellite: Mapped[SatelliteMetadata] = relationship(
         back_populates="tle_history"
     )
 
@@ -115,7 +115,7 @@ class OrbitHistory(Base):
         FLOAT, server_default="0.0", nullable=False
     )
 
-    satellite: Mapped["SatelliteMetadata"] = relationship(
+    satellite: Mapped[SatelliteMetadata] = relationship(
         back_populates="orbit_history"
     )
 

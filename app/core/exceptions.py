@@ -1,11 +1,11 @@
 class BaseDomainException(Exception):
-    """app logic exeption base"""
+    """App logic exception base."""
 
     pass
 
 
-class InfrastructureeOperationalException(BaseDomainException):
-    """infrastructure exception"""
+class InfrastructureOperationalException(BaseDomainException):
+    """Infrastructure exception."""
 
     pass
 

@@ -53,6 +53,6 @@ class DatabaseSessionManager:
 db_manager = DatabaseSessionManager()
 
 
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_db_session() -> AsyncGenerator[AsyncSession]:
     async with db_manager.session() as session:
         yield session

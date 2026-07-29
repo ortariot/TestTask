@@ -54,7 +54,7 @@ async def shutdown(state: TaskiqState) -> None:  # noqa: ARG001
 
     ch_container.close()
 
-    logger.info("Databases connection closes")
+    logger.info("Databases connection closed")
 
 
 def init_taskiq(_: FastAPI) -> None:

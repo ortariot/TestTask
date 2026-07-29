@@ -28,19 +28,63 @@ class TLEData(BaseModel):
     name: str | None = Field(
         default=None,
         max_length=24,
-        description="sattelite name",
+        description="satellite name",
     )
 
-    @model_validator(mode="after")
-    def validate_tle_via_sgp4(self) -> "TLEData":
+    @staticmethod
+    def _calculate_norad_checksum(line: str) -> int:
 
-        l1 = self.line1.strip()
-        l2 = self.line2.strip()
+        checksum = 0
+
+        for char in line[:68]:
+            if char.isdigit():
+                checksum += int(char)
+            elif char == "-":
+                checksum += 1
+        return checksum % 10
+
+    @model_validator(mode="after")
+    def strict_tle_validation(self) -> TLEData:
+
+        LINE_LENGTH = 69
+
+        l1 = self.line1.strip().replace("\n", "").replace("\r", "")
+        l2 = self.line2.strip().replace("\n", "").replace("\r", "")
+
+        if len(l1) != LINE_LENGTH or len(l2) != LINE_LENGTH:
+            raise ValueError(
+                "TLE lines must be exactly 69 characters. "
+                f"(L1: {len(l1)}, L2: {len(l2)})"
+            )
+
+        if not l1.startswith("1 ") or not l2.startswith("2 "):
+            raise ValueError(
+                "Line 1 must start with '1 ', and Line 2 — with '2 '"
+            )
+
+        if self._calculate_norad_checksum(l1) != int(l1[-1]):
+            raise ValueError(
+                "Invalid checksum for line 1. Expected: "
+                f"{self._calculate_norad_checksum(l1)}, in line: {l1[-1]}"
+            )
+
+        if self._calculate_norad_checksum(l2) != int(l2[-1]):
+            raise ValueError(
+                f"Invalid checksum for line 2. Expected: "
+                f"{self._calculate_norad_checksum(l2)}, in line: {l2[-1]}"
+            )
+
+        if l1[2:7] != l2[2:7]:
+            raise ValueError(
+                f"Satellite numbers do not match: {l1[2:7]} and {l2[2:7]}"
+            )
 
         try:
             Satrec.twoline2rv(l1, l2)
-        except ValueError as err:
-            raise ValueError(f"Invalid TLE data: {err}") from err
+        except ValueError as physics_err:
+            raise ValueError(
+                f"SGP4 mathematical model rejected the TLE: {physics_err}"
+            ) from physics_err
 
         self.line1 = l1
         self.line2 = l2

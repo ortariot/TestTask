@@ -6,7 +6,7 @@ from typing import IO, Any, cast
 import clickhouse_connect.driver.exceptions as ch_exceptions
 
 from core.clickhouse import ch_container
-from core.exceptions import InfrastructureeOperationalException
+from core.exceptions import InfrastructureOperationalException
 
 
 class CoordinateService:
@@ -54,13 +54,13 @@ class CoordinateService:
             ch_exceptions.OperationalError,
             ch_exceptions.DatabaseError,
         ) as err:
-            raise InfrastructureeOperationalException(
+            raise InfrastructureOperationalException(
                 "Failed to fetch paginated coordinates"
             ) from err
 
     async def get_coordinates_file_stream(
         self, task_id: int, offset_row: int, limit_row: int
-    ) -> AsyncGenerator[bytes, None]:
+    ) -> AsyncGenerator[bytes]:
 
         def _execute() -> AbstractContextManager[IO[bytes]]:
             stmt = """
@@ -85,7 +85,7 @@ class CoordinateService:
         try:
             raw_stream_context = await asyncio.to_thread(_execute)
 
-            async def _bytes_generator() -> AsyncGenerator[bytes, None]:
+            async def _bytes_generator() -> AsyncGenerator[bytes]:
                 with raw_stream_context as stream:
                     for chunk in stream:
                         yield chunk
@@ -96,6 +96,6 @@ class CoordinateService:
             ch_exceptions.OperationalError,
             ch_exceptions.DatabaseError,
         ) as err:
-            raise InfrastructureeOperationalException(
+            raise InfrastructureOperationalException(
                 "Database storage is unavailable"
             ) from err

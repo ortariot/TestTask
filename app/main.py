@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import URL
 
 from api.v1.calculator import router as calc_router
-from api.v1.misk import router as misk_router
+from api.v1.misc import router as misc_router
 from core.clickhouse import ch_container, setup_clickhouse
 from core.exceptions import TaskNotFinishedException
 from core.logger import StructlogMiddleware
@@ -52,7 +52,7 @@ app.add_middleware(
 app.add_middleware(StructlogMiddleware)
 
 
-app.include_router(misk_router, prefix="", tags=["misk"])
+app.include_router(misc_router, prefix="", tags=["misc"])
 app.include_router(calc_router, prefix="", tags=["calculations"])
 
 
