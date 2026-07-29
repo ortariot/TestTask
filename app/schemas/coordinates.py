@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 
 class CoordPoint(BaseModel):
-    """Одна точка координат."""
+    """A single coordinate point."""
 
     timestamp: datetime
     latitude: float

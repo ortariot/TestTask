@@ -35,15 +35,20 @@ class OrbitData(BaseModel):
     @property
     def launch_year(self) -> int:
 
+        BORDER_YEAR = 50
+        PART_2 = 2
+        PAER_5 = 5
         parts = self.object_id.split("-")
         year_str = parts[0].strip()
 
-        if len(year_str) == 2 or (
-            len(year_str) == 5 and not year_str.startswith("20")
+        if len(year_str) == PART_2 or (
+            len(year_str) == PAER_5 and not year_str.startswith("20")
         ):
             short_year = int(year_str[:2])
             full_year = (
-                1900 + short_year if short_year >= 50 else 2000 + short_year
+                1900 + short_year
+                if short_year >= BORDER_YEAR
+                else 2000 + short_year
             )
             return full_year
 

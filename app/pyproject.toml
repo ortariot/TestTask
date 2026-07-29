@@ -3,7 +3,7 @@ name = "buro"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.18.5",
     "astropy>=8.0.1",
@@ -30,14 +30,13 @@ dev = [
 ]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py314"
 line-length = 79
 
 force-exclude = true
 
 exclude = [
-    "app/migrations",
-    "worker/main.py",
+    "migrations",
 ]
 
 [tool.ruff.lint]
@@ -107,7 +106,8 @@ plugins = [
 ]
 
 exclude = [
-    '^app/migrations/',
+    '^migrations/',
+    '/migrations/'
 ]
 
 [tool.pydantic-mypy]

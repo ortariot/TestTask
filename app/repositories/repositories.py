@@ -32,15 +32,11 @@ class AbstractRepository[ModelType: Base](ABC):
 
     @abstractmethod
     async def delete(self, id_: Any) -> bool:
-        """Удалить сущность по ID."""
+        """Delete an entity by ID."""
         raise NotImplementedError
 
 
 class CRUDRepository[ModelType: Base](AbstractRepository[ModelType]):
-    """
-    Универсальный репозиторий, инкапсулирующий базовые CRUD операции.
-    """
-
     def __init__(self, session: AsyncSession, model: type[ModelType]) -> None:
         self._session = session
         self._model = model
@@ -79,7 +75,7 @@ class CRUDRepository[ModelType: Base](AbstractRepository[ModelType]):
         return (result.rowcount or 0) > 0
 
     def _get_pk_filter(self, id_: Any) -> list[Any]:
-        """хелпер сборки WHERE по одиночным и составным PK."""
+        """Helper for building WHERE clause for single and composite PKs."""
         mapper = self._model.__mapper__
         pk_columns = mapper.primary_key
 

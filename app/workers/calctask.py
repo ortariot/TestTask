@@ -23,8 +23,8 @@ def current_task_name() -> str:
     return task.get_name() if task else "unknown"
 
 
-@broker.task(task_name="process_chank")
-async def process_chank(  # noqa: PLR0913, PLR0917
+@broker.task(task_name="process_chunk")
+async def process_chunk(  # noqa: PLR0913, PLR0917
     task_id: int,
     chunk_index: int,
     start: datetime,
@@ -35,7 +35,7 @@ async def process_chank(  # noqa: PLR0913, PLR0917
 
     task_name = current_task_name()
     logger.info(
-        "[%s] MONITORING: Run process_chank task_id: %s chank index: %s",
+        "[%s] MONITORING: Run process_chunk task_id: %s chunk index: %s",
         task_name,
         task_id,
         chunk_index,
@@ -78,7 +78,7 @@ async def process_chank(  # noqa: PLR0913, PLR0917
         await session.commit()
 
     logger.info(
-        "[%s] MONITORING: Finish process_chank task_id: %s chank index: %s",
+        "[%s] MONITORING: Finish process_chunk task_id: %s chunk index: %s",
         task_name,
         task_id,
         chunk_index,
@@ -123,7 +123,7 @@ async def run_master_calculation(
         )
         chunk_start = calc_data.start + timedelta(seconds=chunk_start_sec)
         chunk_end = calc_data.start + timedelta(seconds=chunk_end_sec)
-        await process_chank.kiq(
+        await process_chunk.kiq(
             task_id=task_id,
             chunk_index=idx,
             start=chunk_start,

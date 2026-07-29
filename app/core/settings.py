@@ -27,7 +27,7 @@ class ApiConfig(BaseSettings):
 
     redis_host: str = "localhost"
     redis_port: int = 6379
-    redis_namesapace: str = "0"
+    redis_namespace: str = "0"
     redis_login: str = "default"
     redis_password: str = "pass"  # noqa: S105
     redis_dsl: URL | None = None
@@ -57,7 +57,7 @@ class ApiConfig(BaseSettings):
             password=self.redis_password,
             host=self.redis_host,
             port=self.redis_port,
-            database=self.redis_namesapace,
+            database=self.redis_namespace,
         )
         return self
 
