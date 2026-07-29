@@ -13,6 +13,7 @@ dependencies = [
     "numpy>=2.5.1",
     "orjson>=3.11.9",
     "pydantic-settings>=2.14.2",
+    "pytest>=9.1.1",
     "sgp4>=2.27",
     "skyfield>=1.54",
     "sqlalchemy>=2.0.51",
@@ -25,7 +26,10 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.0",
     "mypy>=2.3.0",
+    "pytest>=8.4.0",
+    "pytest-asyncio>=1.0.0",
     "ruff>=0.16.0",
 ]
 
@@ -86,6 +90,16 @@ extend-immutable-calls = [
     "fastapi.Query",
     "fastapi.Path",
     "fastapi.Body"
+]
+
+[tool.pytest.ini_options]
+pythonpath = [".", ".."]
+testpaths = ["../tests"]
+asyncio_mode = "auto"
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "validation: endpoint validation tests",
+    "time_slicing: time-range slicing tests",
 ]
 
 [tool.mypy]
